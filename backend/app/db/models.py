@@ -63,7 +63,10 @@ class UserFeedback(SQLModel, table=True):
     target_name: str = Field(nullable=False)
     feedback_type: str = Field(nullable=False, index=True)
     reason: str = Field(default="")
-    metadata: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    feedback_metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        sa_column=Column("metadata", JSON),
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
 

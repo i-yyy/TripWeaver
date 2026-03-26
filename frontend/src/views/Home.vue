@@ -1,10 +1,13 @@
 <template>
   <div class="home-page">
     <a-card class="planner-card" :bordered="false">
+      <div class="top-row">
+        <a-button @click="goKBEval">前往RAG评测</a-button>
+      </div>
       <h1 class="title">智能旅行规划助手</h1>
       <p class="subtitle">输入基础需求后，系统会结合多智能体生成个性化行程。</p>
 
-      <a-form layout="vertical" @finish="handleSubmit">
+      <a-form layout="vertical" @submit.prevent="handleSubmit">
         <a-row :gutter="12">
           <a-col :span="8">
             <a-form-item label="目的地城市" required>
@@ -87,7 +90,7 @@
         </a-form-item>
 
         <a-form-item>
-          <a-button type="primary" html-type="submit" :loading="loading" block size="large">
+          <a-button type="primary" html-type="button" :loading="loading" block size="large" @click="handleSubmit">
             {{ loading ? loadingStatus : '生成我的行程' }}
           </a-button>
         </a-form-item>
@@ -207,6 +210,10 @@ const handleSubmit = async () => {
     loading.value = false
   }
 }
+
+const goKBEval = () => {
+  router.push('/kb-eval')
+}
 </script>
 
 <style scoped>
@@ -221,6 +228,12 @@ const handleSubmit = async () => {
   margin: 0 auto;
   border-radius: 16px;
   box-shadow: 0 20px 40px rgba(31, 50, 81, 0.14);
+}
+
+.top-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
 }
 
 .title {

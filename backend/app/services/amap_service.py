@@ -1,7 +1,13 @@
 """高德地图MCP服务封装"""
 
 from typing import List, Dict, Any, Optional
-from hello_agents.tools import MCPTool
+try:
+    from hello_agents.tools import MCPTool  # 旧版 hello-agents
+except Exception:  # pragma: no cover - 兼容新版本
+    try:
+        from hello_agents.tools.builtin.protocol_tools import MCPTool  # type: ignore
+    except Exception:  # pragma: no cover - 当前环境缺少 MCPTool
+        MCPTool = None  # type: ignore
 from ..config import get_settings
 from ..models.schemas import Location, POIInfo, WeatherInfo
 
@@ -9,7 +15,7 @@ from ..models.schemas import Location, POIInfo, WeatherInfo
 _amap_mcp_tool = None
 
 
-def get_amap_mcp_tool() -> MCPTool:
+def get_amap_mcp_tool() -> Any:
     """
     获取高德地图MCP工具实例(单例模式)
     
@@ -20,6 +26,12 @@ def get_amap_mcp_tool() -> MCPTool:
     
     if _amap_mcp_tool is None:
         settings = get_settings()
+
+        if MCPTool is None:
+            raise RuntimeError(
+                "当前 hello-agents 版本未提供 MCPTool，地图能力不可用。"
+                "请安装兼容版本或升级代码到新工具体系。"
+            )
         
         if not settings.amap_api_key:
             raise ValueError("高德地图API Key未配置,请在.env文件中设置AMAP_API_KEY")
@@ -266,4 +278,3 @@ def get_amap_service() -> AmapService:
         _amap_service = AmapService()
     
     return _amap_service
-

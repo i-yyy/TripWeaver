@@ -22,7 +22,7 @@ class FeedbackService:
             target_name=payload.target_name,
             feedback_type=payload.feedback_type,
             reason=payload.reason,
-            metadata=payload.metadata,
+            feedback_metadata=payload.metadata,
         )
         with session_scope() as session:
             session.add(feedback)

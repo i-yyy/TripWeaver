@@ -1,37 +1,39 @@
-"""LLM服务模块"""
+"""LLM service helpers."""
+
+from __future__ import annotations
+
+from typing import Any, Optional
 
 from hello_agents import HelloAgentsLLM
-from ..config import get_settings
 
-# 全局LLM实例
-_llm_instance = None
+_llm_instance: Optional[HelloAgentsLLM] = None
+
+
+def _safe_attr(obj: Any, attr_name: str, default: str = "unknown") -> str:
+    try:
+        value = getattr(obj, attr_name, default)
+        return str(value)
+    except Exception:
+        return default
 
 
 def get_llm() -> HelloAgentsLLM:
-    """
-    获取LLM实例(单例模式)
-    
-    Returns:
-        HelloAgentsLLM实例
-    """
+    """Return singleton LLM client."""
     global _llm_instance
-    
+
     if _llm_instance is None:
-        settings = get_settings()
-        
-        # HelloAgentsLLM会自动从环境变量读取配置
-        # 包括OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL等
         _llm_instance = HelloAgentsLLM()
-        
-        print(f"✅ LLM服务初始化成功")
-        print(f"   提供商: {_llm_instance.provider}")
-        print(f"   模型: {_llm_instance.model}")
-    
+
+        provider = _safe_attr(_llm_instance, "provider")
+        model = _safe_attr(_llm_instance, "model")
+        print("LLM service initialized")
+        print(f"  provider: {provider}")
+        print(f"  model: {model}")
+
     return _llm_instance
 
 
-def reset_llm():
-    """重置LLM实例(用于测试或重新配置)"""
+def reset_llm() -> None:
+    """Reset LLM singleton (mainly for tests)."""
     global _llm_instance
     _llm_instance = None
-

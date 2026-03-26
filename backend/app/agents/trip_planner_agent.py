@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from hello_agents import SimpleAgent
-from hello_agents.tools import MCPTool
+try:
+    from hello_agents.tools import MCPTool  # 旧版 hello-agents
+except Exception:  # pragma: no cover - 兼容新版本
+    try:
+        from hello_agents.tools.builtin.protocol_tools import MCPTool  # type: ignore
+    except Exception:  # pragma: no cover - 当前环境缺少 MCPTool
+        MCPTool = None  # type: ignore
 
 from ..config import get_settings
 from ..models.schemas import Attraction, DayPlan, Location, Meal, TripPlan, TripRequest
@@ -63,34 +70,41 @@ class MultiAgentTripPlanner:
     def __init__(self) -> None:
         settings = get_settings()
         self.llm = get_llm()
-        self.amap_tool = MCPTool(
-            name="amap",
-            description="高德地图服务",
-            server_command=["uvx", "amap-mcp-server"],
-            env={"AMAP_MAPS_API_KEY": settings.amap_api_key},
-            auto_expand=True,
-        )
+        self.amap_tool = None
+        if MCPTool is not None:
+            self.amap_tool = MCPTool(
+                name="amap",
+                description="高德地图服务",
+                server_command=["uvx", "amap-mcp-server"],
+                env={"AMAP_MAPS_API_KEY": settings.amap_api_key},
+                auto_expand=True,
+            )
+        else:
+            print("警告: 当前 hello-agents 版本未提供 MCPTool，将使用无地图工具降级模式。")
 
         self.attraction_agent = SimpleAgent(
             name="景点检索智能体",
             llm=self.llm,
             system_prompt=ATTRACTION_AGENT_PROMPT,
         )
-        self.attraction_agent.add_tool(self.amap_tool)
+        if self.amap_tool is not None:
+            self.attraction_agent.add_tool(self.amap_tool)
 
         self.weather_agent = SimpleAgent(
             name="天气查询智能体",
             llm=self.llm,
             system_prompt=WEATHER_AGENT_PROMPT,
         )
-        self.weather_agent.add_tool(self.amap_tool)
+        if self.amap_tool is not None:
+            self.weather_agent.add_tool(self.amap_tool)
 
         self.hotel_agent = SimpleAgent(
             name="酒店推荐智能体",
             llm=self.llm,
             system_prompt=HOTEL_AGENT_PROMPT,
         )
-        self.hotel_agent.add_tool(self.amap_tool)
+        if self.amap_tool is not None:
+            self.hotel_agent.add_tool(self.amap_tool)
 
         self.planner_agent = SimpleAgent(
             name="行程规划智能体",
@@ -191,7 +205,10 @@ class MultiAgentTripPlanner:
         try:
             json_str = self._extract_json(response)
             data = json.loads(json_str)
-            return TripPlan(**data)
+            if not isinstance(data, dict):
+                raise ValueError("planner response root must be an object")
+            normalized = self._normalize_plan_data(data, request)
+            return TripPlan(**normalized)
         except Exception as exc:
             print(f"解析规划结果失败，启用兜底方案: {exc}")
             return self._create_fallback_plan(request)
@@ -211,6 +228,153 @@ class MultiAgentTripPlanner:
             end = response.rfind("}") + 1
             return response[start:end]
         raise ValueError("响应中未找到 JSON")
+
+    def _normalize_plan_data(self, data: Dict[str, Any], request: TripRequest) -> Dict[str, Any]:
+        raw_days = data.get("days")
+        if not isinstance(raw_days, list):
+            raw_days = data.get("itinerary") if isinstance(data.get("itinerary"), list) else []
+
+        days = [self._normalize_day(day, idx, request) for idx, day in enumerate(raw_days)]
+        if not days:
+            for idx in range(request.travel_days):
+                days.append(self._normalize_day({}, idx, request))
+
+        budget = data.get("budget") if isinstance(data.get("budget"), dict) else {}
+        total_attractions = self._to_int(budget.get("total_attractions"), default=0)
+        total_hotels = self._to_int(budget.get("total_hotels"), default=len(days))
+        total_meals = self._to_int(budget.get("total_meals"), default=0)
+        total_transport = self._to_int(budget.get("total_transportation"), default=0)
+        total_cost = self._to_int(
+            budget.get("total"),
+            default=total_attractions + total_hotels + total_meals + total_transport,
+        )
+
+        return {
+            "city": str(data.get("city") or request.city),
+            "start_date": str(data.get("start_date") or request.start_date),
+            "end_date": str(data.get("end_date") or request.end_date),
+            "days": days,
+            "weather_info": data.get("weather_info") if isinstance(data.get("weather_info"), list) else [],
+            "overall_suggestions": str(
+                data.get("overall_suggestions")
+                or data.get("summary")
+                or f"{request.city} {request.travel_days} 天行程建议"
+            ),
+            "budget": {
+                "total_attractions": total_attractions,
+                "total_hotels": total_hotels,
+                "total_meals": total_meals,
+                "total_transportation": total_transport,
+                "total": total_cost,
+            },
+        }
+
+    def _normalize_day(self, raw_day: Any, day_index: int, request: TripRequest) -> Dict[str, Any]:
+        day = raw_day if isinstance(raw_day, dict) else {}
+
+        date_text = day.get("date")
+        if not isinstance(date_text, str) or not date_text.strip():
+            start_date = datetime.strptime(request.start_date, "%Y-%m-%d")
+            date_text = (start_date + timedelta(days=day_index)).strftime("%Y-%m-%d")
+
+        attractions_raw = day.get("attractions") if isinstance(day.get("attractions"), list) else []
+        meals_raw = day.get("meals") if isinstance(day.get("meals"), list) else []
+
+        return {
+            "date": date_text,
+            "day_index": self._to_int(day.get("day_index"), default=day_index),
+            "description": str(day.get("description") or day.get("theme") or f"第{day_index + 1}天行程"),
+            "transportation": str(day.get("transportation") or request.transportation),
+            "accommodation": str(day.get("accommodation") or request.accommodation),
+            "attractions": [self._normalize_attraction(item, request.city) for item in attractions_raw],
+            "meals": [self._normalize_meal(item, idx) for idx, item in enumerate(meals_raw)],
+        }
+
+    def _normalize_attraction(self, raw_item: Any, city: str) -> Dict[str, Any]:
+        item = raw_item if isinstance(raw_item, dict) else {}
+        return {
+            "name": str(item.get("name") or item.get("title") or "推荐景点"),
+            "address": str(item.get("address") or city),
+            "location": self._normalize_location(item.get("location"), city),
+            "visit_duration": self._parse_visit_duration(item.get("visit_duration")),
+            "description": str(item.get("description") or item.get("reason") or ""),
+            "category": str(item.get("category") or "attraction"),
+            "ticket_price": self._to_int(
+                item.get("ticket_price") or item.get("price") or item.get("estimated_cost"),
+                default=0,
+            ),
+        }
+
+    def _normalize_meal(self, raw_item: Any, index: int) -> Dict[str, Any]:
+        item = raw_item if isinstance(raw_item, dict) else {}
+        default_types = ["breakfast", "lunch", "dinner"]
+        meal_type = str(item.get("type") or default_types[min(index, 2)])
+        meal_name = item.get("name") or item.get("suggestion") or f"{meal_type} recommendation"
+        return {
+            "type": meal_type,
+            "name": str(meal_name),
+            "address": str(item.get("address")) if item.get("address") else None,
+            "description": str(item.get("description") or item.get("suggestion") or ""),
+            "estimated_cost": self._to_int(
+                item.get("estimated_cost") or item.get("estimated_cost_per_person"),
+                default=0,
+            ),
+        }
+
+    def _normalize_location(self, raw_location: Any, city: str) -> Dict[str, float]:
+        if isinstance(raw_location, dict):
+            lng = raw_location.get("longitude", raw_location.get("lng", raw_location.get("lon", 116.40)))
+            lat = raw_location.get("latitude", raw_location.get("lat", 39.90))
+            return {
+                "longitude": self._to_float(lng, default=116.40),
+                "latitude": self._to_float(lat, default=39.90),
+            }
+
+        if isinstance(raw_location, str) and "," in raw_location:
+            parts = [part.strip() for part in raw_location.split(",")]
+            if len(parts) >= 2:
+                return {
+                    "longitude": self._to_float(parts[0], default=116.40),
+                    "latitude": self._to_float(parts[1], default=39.90),
+                }
+
+        city_lng, city_lat = (116.40, 39.90) if city.lower() == "beijing" else (121.47, 31.23)
+        return {"longitude": city_lng, "latitude": city_lat}
+
+    def _parse_visit_duration(self, value: Any) -> int:
+        if isinstance(value, (int, float)):
+            return max(30, int(value))
+        if isinstance(value, str):
+            text = value.strip().lower()
+            numbers = re.findall(r"\d+(?:\.\d+)?", text)
+            if numbers:
+                amount = float(numbers[0])
+                if "小时" in text or "hour" in text or text.endswith("h"):
+                    return max(30, int(amount * 60))
+                return max(30, int(amount))
+        return 120
+
+    @staticmethod
+    def _to_int(value: Any, default: int = 0) -> int:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            numbers = re.findall(r"-?\d+", value)
+            if numbers:
+                return int(numbers[0])
+        return default
+
+    @staticmethod
+    def _to_float(value: Any, default: float = 0.0) -> float:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            numbers = re.findall(r"-?\d+(?:\.\d+)?", value)
+            if numbers:
+                return float(numbers[0])
+        return default
 
     def _create_fallback_plan(self, request: TripRequest) -> TripPlan:
         start_date = datetime.strptime(request.start_date, "%Y-%m-%d")

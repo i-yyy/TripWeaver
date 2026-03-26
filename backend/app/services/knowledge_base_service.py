@@ -212,19 +212,16 @@ class KnowledgeBaseService:
             )
 
             query_filter = models.Filter(must=must_conditions) if must_conditions else None
-            search_result = self.client.search(
-                collection_name=self.settings.qdrant_collection_kb,
+            search_result = self._qdrant_search(
                 query_vector=query_vector,
                 query_filter=query_filter,
                 limit=limit,
-                with_payload=True,
-                with_vectors=False,
             )
 
             results: List[Dict[str, Any]] = []
-            for item in search_result:
-                payload = dict(item.payload or {})
-                score = float(item.score or 0.0)
+            for item in self._extract_scored_points(search_result):
+                payload = self._extract_payload(item)
+                score = self._extract_score(item)
                 if score < self.settings.rag_min_score:
                     continue
                 results.append(
@@ -249,6 +246,111 @@ class KnowledgeBaseService:
     # -----------------------
     # 工具方法
     # -----------------------
+    def _qdrant_search(
+        self,
+        query_vector: List[float],
+        query_filter: Optional[models.Filter],
+        limit: int,
+    ) -> Any:
+        collection_name = self.settings.qdrant_collection_kb
+
+        # Old qdrant-client API.
+        if hasattr(self.client, "search"):
+            return self.client.search(
+                collection_name=collection_name,
+                query_vector=query_vector,
+                query_filter=query_filter,
+                limit=limit,
+                with_payload=True,
+                with_vectors=False,
+            )
+
+        # New qdrant-client API.
+        if hasattr(self.client, "query_points"):
+            return self._qdrant_query_points(
+                collection_name=collection_name,
+                query_vector=query_vector,
+                query_filter=query_filter,
+                limit=limit,
+            )
+
+        raise AttributeError("QdrantClient does not expose search/query_points methods")
+
+    def _qdrant_query_points(
+        self,
+        collection_name: str,
+        query_vector: List[float],
+        query_filter: Optional[models.Filter],
+        limit: int,
+    ) -> Any:
+        base_kwargs = {
+            "collection_name": collection_name,
+            "query_filter": query_filter,
+            "limit": limit,
+            "with_payload": True,
+            "with_vectors": False,
+        }
+
+        # Some versions use `query`, some use `query_vector`.
+        for key in ("query", "query_vector"):
+            try:
+                return self.client.query_points(**{key: query_vector, **base_kwargs})
+            except TypeError:
+                continue
+
+        # Last fallback: positional query vector.
+        return self.client.query_points(
+            collection_name,
+            query_vector,
+            query_filter=query_filter,
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+    @staticmethod
+    def _extract_scored_points(search_result: Any) -> List[Any]:
+        if search_result is None:
+            return []
+        if isinstance(search_result, list):
+            return search_result
+
+        points = getattr(search_result, "points", None)
+        if points is not None:
+            return list(points)
+
+        result = getattr(search_result, "result", None)
+        if result is not None:
+            if isinstance(result, list):
+                return result
+            nested_points = getattr(result, "points", None)
+            if nested_points is not None:
+                return list(nested_points)
+
+        if isinstance(search_result, tuple) and search_result:
+            first = search_result[0]
+            if isinstance(first, list):
+                return first
+
+        try:
+            return list(search_result)
+        except TypeError:
+            return []
+
+    @staticmethod
+    def _extract_payload(item: Any) -> Dict[str, Any]:
+        payload = getattr(item, "payload", None)
+        if payload is None and isinstance(item, dict):
+            payload = item.get("payload")
+        return dict(payload or {})
+
+    @staticmethod
+    def _extract_score(item: Any) -> float:
+        score = getattr(item, "score", None)
+        if score is None and isinstance(item, dict):
+            score = item.get("score", 0.0)
+        return float(score or 0.0)
+
     @staticmethod
     def _safe_read(path: Path) -> str:
         try:

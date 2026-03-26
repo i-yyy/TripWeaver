@@ -1,7 +1,10 @@
 <template>
   <div class="result-page">
     <div class="header-row">
-      <a-button size="large" @click="goBack">返回首页</a-button>
+      <a-space>
+        <a-button size="large" @click="goBack">返回首页</a-button>
+        <a-button @click="goKBEval">RAG评测</a-button>
+      </a-space>
       <a-space>
         <a-button v-if="!editMode" @click="toggleEditMode">编辑行程</a-button>
         <a-button v-if="editMode" type="primary" @click="saveChanges">保存修改</a-button>
@@ -149,6 +152,10 @@ onMounted(() => {
 
 const goBack = () => {
   router.push('/')
+}
+
+const goKBEval = () => {
+  router.push('/kb-eval')
 }
 
 const toggleEditMode = () => {
