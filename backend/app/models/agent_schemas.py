@@ -1,0 +1,87 @@
+"""Structured schemas for internal multi-agent collaboration."""
+
+from __future__ import annotations
+
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
+from .schemas import Attraction, Hotel, RecommendationReason, TripPlan, TripRequest, WeatherInfo
+
+
+class AgentExecutionStatus(BaseModel):
+    success: bool = True
+    degraded: bool = False
+    warnings: List[str] = Field(default_factory=list)
+    error: Optional[str] = None
+
+
+class SupervisorAgentInput(BaseModel):
+    request: TripRequest
+    profile_context: str = ""
+    memory_context: str = ""
+    rag_context: str = ""
+    recommendation_reasons: List[RecommendationReason] = Field(default_factory=list)
+
+
+class AttractionAgentInput(BaseModel):
+    request: TripRequest
+    profile_context: str = ""
+    rag_context: str = ""
+    limit: int = 12
+
+
+class AttractionAgentOutput(BaseModel):
+    status: AgentExecutionStatus = Field(default_factory=AgentExecutionStatus)
+    search_queries: List[str] = Field(default_factory=list)
+    attractions: List[Attraction] = Field(default_factory=list)
+
+
+class WeatherAgentInput(BaseModel):
+    request: TripRequest
+
+
+class WeatherAgentOutput(BaseModel):
+    status: AgentExecutionStatus = Field(default_factory=AgentExecutionStatus)
+    weather_info: List[WeatherInfo] = Field(default_factory=list)
+    summary: str = ""
+    suggestions: List[str] = Field(default_factory=list)
+
+
+class HotelAgentInput(BaseModel):
+    request: TripRequest
+    profile_context: str = ""
+    limit: int = 8
+
+
+class HotelAgentOutput(BaseModel):
+    status: AgentExecutionStatus = Field(default_factory=AgentExecutionStatus)
+    search_queries: List[str] = Field(default_factory=list)
+    hotels: List[Hotel] = Field(default_factory=list)
+
+
+class PlanningAgentInput(BaseModel):
+    request: TripRequest
+    profile_context: str = ""
+    memory_context: str = ""
+    rag_context: str = ""
+    recommendation_reasons: List[RecommendationReason] = Field(default_factory=list)
+    attraction_result: AttractionAgentOutput
+    weather_result: WeatherAgentOutput
+    hotel_result: HotelAgentOutput
+    supervisor_warnings: List[str] = Field(default_factory=list)
+
+
+class PlanningAgentOutput(BaseModel):
+    status: AgentExecutionStatus = Field(default_factory=AgentExecutionStatus)
+    trip_plan: TripPlan
+    raw_response: Optional[str] = None
+
+
+class SupervisorAgentOutput(BaseModel):
+    status: AgentExecutionStatus = Field(default_factory=AgentExecutionStatus)
+    attraction_result: AttractionAgentOutput
+    weather_result: WeatherAgentOutput
+    hotel_result: HotelAgentOutput
+    planning_result: PlanningAgentOutput
+

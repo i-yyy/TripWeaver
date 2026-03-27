@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, HTTPException
 
 from ...agents.trip_planner_agent import get_trip_planner_agent
@@ -9,6 +11,8 @@ from ...models.schemas import RecommendationReason, TripPlanResponse, TripReques
 from ...services.memory_service import get_memory_service
 from ...services.profile_service import get_profile_service
 from ...services.retriever_service import get_retriever_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/trip", tags=["trip"])
 
@@ -27,7 +31,7 @@ def _tool_count(agent: object) -> int:
     return 0
 
 
-@router.post("/plan", response_model=TripPlanResponse, summary="生成旅行规划")
+@router.post("/plan", response_model=TripPlanResponse, summary="Generate a trip plan")
 async def plan_trip(request: TripRequest) -> TripPlanResponse:
     try:
         profile_service = get_profile_service()
@@ -56,28 +60,30 @@ async def plan_trip(request: TripRequest) -> TripPlanResponse:
             memories=memories,
         )
         rag_context = str(rag_bundle.get("context_text", ""))
-        recommendation_reasons = list(rag_bundle.get("recommendation_reasons", []))
+        recommendation_reasons = [
+            reason
+            if isinstance(reason, RecommendationReason)
+            else RecommendationReason.model_validate(reason)
+            for reason in rag_bundle.get("recommendation_reasons", [])
+        ]
 
-        trip_plan = planner.plan_trip(
+        trip_plan = await planner.plan_trip(
             request=request,
             profile_context=profile_context,
             memory_context=memory_context,
             rag_context=rag_context,
+            recommendation_reasons=recommendation_reasons,
         )
-        trip_plan.recommendation_reasons = [
-            reason
-            if isinstance(reason, RecommendationReason)
-            else RecommendationReason.model_validate(reason)
-            for reason in recommendation_reasons
-        ]
+        trip_plan.recommendation_reasons = recommendation_reasons
 
         memory_service.save_trip_summary(request, trip_plan)
-        return TripPlanResponse(success=True, message="旅行规划生成成功", data=trip_plan)
+        return TripPlanResponse(success=True, message="Trip plan generated successfully", data=trip_plan)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"生成旅行规划失败: {exc}") from exc
+        logger.exception("Failed to generate trip plan")
+        raise HTTPException(status_code=500, detail=f"Failed to generate trip plan: {exc}") from exc
 
 
-@router.get("/health", summary="行程服务健康检查")
+@router.get("/health", summary="Trip planner health check")
 async def health_check() -> dict:
     try:
         planner = get_trip_planner_agent()
@@ -87,6 +93,8 @@ async def health_check() -> dict:
             "attraction_tools": _tool_count(planner.attraction_agent),
             "weather_tools": _tool_count(planner.weather_agent),
             "hotel_tools": _tool_count(planner.hotel_agent),
+            "planning_tools": _tool_count(planner.planning_agent),
         }
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"服务不可用: {exc}") from exc
+        raise HTTPException(status_code=503, detail=f"Service unavailable: {exc}") from exc
+
