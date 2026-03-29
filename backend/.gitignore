@@ -49,3 +49,7 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# 运行产物
+trip_planner.db
+memory/traces/
+
