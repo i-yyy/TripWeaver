@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from sqlmodel import delete, select
@@ -16,7 +16,7 @@ from .profile_service import get_profile_service
 class AuthService:
     @staticmethod
     def _utcnow() -> datetime:
-        return datetime.now(UTC)
+        return datetime.now(timezone.utc)
 
     def get_user_by_id(self, user_id: str) -> Optional[User]:
         with session_scope() as session:

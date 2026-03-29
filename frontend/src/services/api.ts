@@ -2,6 +2,8 @@ import axios from 'axios'
 
 import type {
   AuthChangePasswordPayload,
+  DayRoutePayload,
+  DayRouteResponse,
   AuthLoginPayload,
   AuthLoginResponse,
   AuthRegisterPayload,
@@ -139,12 +141,21 @@ export async function getTravelTracks(): Promise<TravelTracksResponse> {
   }
 }
 
+export async function getDayRouteDetail(payload: DayRoutePayload): Promise<DayRouteResponse> {
+  try {
+    const response = await apiClient.post<DayRouteResponse>('/api/map/day-route', payload)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || 'åŠ è½½æ¯æ—¥è·¯çº¿å¤±è´¥')
+  }
+}
+
 export async function evaluateKnowledgeBase(payload: KBEvaluatePayload): Promise<KBEvaluateResponse> {
   try {
     const response = await apiClient.post<KBEvaluateResponse>('/api/kb/evaluate', payload)
     return response.data
   } catch (error: any) {
-    throw new Error(error.response?.data?.detail || error.message || 'è¯„ä¼°çŸ¥è¯†åº“å¤±è´¥')
+    throw new Error(error.response?.data?.detail || error.message || 'ÖªÊ¶¿âÆÀ¹ÀÊ§°Ü')
   }
 }
 
@@ -153,7 +164,7 @@ export async function healthCheck(): Promise<any> {
     const response = await apiClient.get('/health')
     return response.data
   } catch (error: any) {
-    throw new Error(error.message || 'å¥åº·æ£€æŸ¥å¤±è´¥')
+    throw new Error(error.message || '½¡¿µ¼ì²éÊ§°Ü')
   }
 }
 

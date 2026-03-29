@@ -11,6 +11,8 @@ export interface Attraction {
   description: string
   category?: string
   rating?: number
+  photos?: string[]
+  poi_id?: string
   image_url?: string
   map_image_url?: string
   ticket_price?: number
@@ -69,6 +71,55 @@ export interface DayPlan {
   meals: Meal[]
   route_summary?: string
   route_map_url?: string
+}
+
+export interface DayRouteStopPayload {
+  name: string
+  address?: string
+  location?: Location
+  image_url?: string
+}
+
+export interface DayRouteMarker {
+  label: string
+  title: string
+  kind: string
+  address: string
+  location: Location
+  image_url?: string | null
+}
+
+export interface DayRouteSegment {
+  start_label: string
+  end_label: string
+  route_type: string
+  distance: number
+  duration: number
+  description: string
+  polyline: Location[]
+}
+
+export interface DayRouteInfo {
+  route_type: string
+  summary: string
+  distance: number
+  duration: number
+  markers: DayRouteMarker[]
+  segments: DayRouteSegment[]
+  fallback_static_map_url?: string | null
+}
+
+export interface DayRoutePayload {
+  city: string
+  route_type: 'walking' | 'driving' | 'transit'
+  hotel?: DayRouteStopPayload | null
+  attractions: DayRouteStopPayload[]
+}
+
+export interface DayRouteResponse {
+  success: boolean
+  message: string
+  data?: DayRouteInfo | null
 }
 
 export interface WeatherInfo {

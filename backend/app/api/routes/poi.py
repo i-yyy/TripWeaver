@@ -91,7 +91,7 @@ async def search_poi(keywords: str, city: str = "北京"):
     summary="获取景点图片",
     description="根据景点名称从Unsplash获取图片"
 )
-async def get_attraction_photo(name: str):
+async def get_attraction_photo(name: str, poi_id: Optional[str] = None):
     """
     获取景点图片
 
@@ -102,10 +102,21 @@ async def get_attraction_photo(name: str):
         图片URL
     """
     try:
+        amap_service = get_amap_service()
         unsplash_service = get_unsplash_service()
+        photo_url: Optional[str] = None
+        if poi_id:
+            try:
+                detail = amap_service.get_poi_detail(poi_id)
+                photo_urls = amap_service.extract_photo_urls(detail)
+                if photo_urls:
+                    photo_url = photo_urls[0]
+            except Exception as exc:
+                print(f"❌ 获取高德POI图片失败: {str(exc)}")
 
         # 搜索景点图片
-        photo_url = unsplash_service.get_photo_url(f"{name} China landmark")
+        if not photo_url:
+            photo_url = unsplash_service.get_photo_url(f"{name} China landmark")
 
         if not photo_url:
             # 如果没找到,尝试只用景点名称搜索

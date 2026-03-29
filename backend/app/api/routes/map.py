@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from ...models.schemas import POISearchResponse, RouteRequest, RouteResponse, WeatherResponse
+from ...models.schemas import DayRouteRequest, DayRouteResponse, POISearchResponse, RouteRequest, RouteResponse, WeatherResponse
 from ...services.amap_service import get_amap_service
 
 router = APIRouter(prefix="/map", tags=["map"])
@@ -50,6 +50,21 @@ async def plan_route(request: RouteRequest):
         return RouteResponse(success=True, message="Route planning succeeded", data=route_info)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Route planning failed: {exc}") from exc
+
+
+@router.post("/day-route", response_model=DayRouteResponse, summary="Build day route details")
+async def build_day_route(request: DayRouteRequest):
+    try:
+        service = get_amap_service()
+        route_info = service.build_day_route(
+            city=request.city,
+            route_type=request.route_type,
+            hotel=request.hotel,
+            attractions=request.attractions,
+        )
+        return DayRouteResponse(success=True, message="Day route built successfully", data=route_info)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Day route build failed: {exc}") from exc
 
 
 @router.get("/health", summary="Map health")

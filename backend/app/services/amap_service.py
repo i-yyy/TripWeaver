@@ -31,7 +31,7 @@ except Exception:  # pragma: no cover - optional dependency
     StdioTransport = None  # type: ignore
 
 from ..config import get_settings
-from ..models.schemas import Location, POIInfo, WeatherInfo
+from ..models.schemas import DayRouteInfo, DayRouteStopRequest, Location, POIInfo, RouteMarker, RouteSegment, WeatherInfo
 
 logger = logging.getLogger(__name__)
 
@@ -333,6 +333,107 @@ class AmapService:
             "markers": "|".join(marker_specs),
         }
         return "https://restapi.amap.com/v3/staticmap?" + urllib.parse.urlencode(params)
+
+    def get_poi_photo_urls(self, poi_id: str) -> List[str]:
+        normalized = str(poi_id or "").strip()
+        if not normalized:
+            return []
+        detail = self.get_poi_detail(normalized)
+        return self.extract_photo_urls(detail)
+
+    @classmethod
+    def extract_photo_urls(cls, detail: Dict[str, Any]) -> List[str]:
+        if not isinstance(detail, dict):
+            return []
+
+        normalized: List[str] = []
+        seen: set[str] = set()
+
+        def _append(url: Any) -> None:
+            if not url:
+                return
+            text = str(url).strip()
+            if not text or text in seen:
+                return
+            seen.add(text)
+            normalized.append(text)
+
+        photos = detail.get("photos")
+        if isinstance(photos, list):
+            for item in photos:
+                if isinstance(item, dict):
+                    _append(item.get("url") or item.get("image") or item.get("src"))
+                else:
+                    _append(item)
+
+        photo = detail.get("photo")
+        if isinstance(photo, dict):
+            _append(photo.get("url") or photo.get("image") or photo.get("src"))
+        else:
+            _append(photo)
+
+        images = detail.get("images")
+        if isinstance(images, list):
+            for item in images:
+                if isinstance(item, dict):
+                    _append(item.get("url") or item.get("image") or item.get("src"))
+                else:
+                    _append(item)
+
+        return normalized
+
+    def build_day_route(
+        self,
+        city: str,
+        route_type: str,
+        hotel: Optional[DayRouteStopRequest],
+        attractions: Sequence[DayRouteStopRequest],
+    ) -> DayRouteInfo:
+        normalized_route_type = str(route_type or "walking").strip().lower() or "walking"
+        city_name = str(city or "").strip()
+
+        hotel_marker = self._normalize_day_route_stop(hotel, city_name, label="H", kind="hotel")
+        attraction_markers = [
+            marker
+            for index, stop in enumerate(attractions, start=1)
+            if (marker := self._normalize_day_route_stop(stop, city_name, label=str(index), kind="attraction")) is not None
+        ]
+
+        markers: List[RouteMarker] = []
+        if hotel_marker is not None:
+            markers.append(hotel_marker)
+        markers.extend(attraction_markers)
+
+        ordered_stops: List[RouteMarker] = []
+        if hotel_marker is not None:
+            ordered_stops.append(hotel_marker)
+        ordered_stops.extend(attraction_markers)
+        if hotel_marker is not None and attraction_markers:
+            ordered_stops.append(hotel_marker.model_copy())
+
+        segments: List[RouteSegment] = []
+        total_distance = 0.0
+        total_duration = 0
+        for start, end in zip(ordered_stops, ordered_stops[1:]):
+            segment = self._build_day_route_segment(start, end, city_name, normalized_route_type)
+            segments.append(segment)
+            total_distance += float(segment.distance or 0.0)
+            total_duration += int(segment.duration or 0)
+
+        fallback_static_map_url = self.build_static_map_url(
+            [marker.location for marker in markers],
+            labels=[marker.label for marker in markers],
+        )
+
+        return DayRouteInfo(
+            route_type=normalized_route_type,
+            summary=self._build_day_route_summary(ordered_stops, normalized_route_type, total_distance, total_duration),
+            distance=total_distance,
+            duration=total_duration,
+            markers=markers,
+            segments=segments,
+            fallback_static_map_url=fallback_static_map_url,
+        )
 
     @staticmethod
     def _runtime_trace(message: str) -> None:
@@ -683,41 +784,14 @@ class AmapService:
         destination = self._geocode_via_http(destination_address, destination_city)
         if origin is None or destination is None:
             raise ValueError("Failed to geocode route endpoints")
-
-        origin_text = f"{origin.longitude},{origin.latitude}"
-        destination_text = f"{destination.longitude},{destination.latitude}"
-
-        if route_type == "transit":
-            params: Dict[str, Any] = {
-                "origin": origin_text,
-                "destination": destination_text,
-                "city": (origin_city or destination_city or "").strip(),
-                "cityd": (destination_city or origin_city or "").strip(),
-                "extensions": "base",
-            }
-            params = {key: value for key, value in params.items() if value}
-            payload = self._http_get_json(AMAP_TRANSIT_URL, params)
-            return self._normalize_route_payload(payload, route_type)
-
-        if route_type == "driving":
-            payload = self._http_get_json(
-                AMAP_DRIVING_URL,
-                {
-                    "origin": origin_text,
-                    "destination": destination_text,
-                    "extensions": "base",
-                },
-            )
-            return self._normalize_route_payload(payload, route_type)
-
-        payload = self._http_get_json(
-            AMAP_WALKING_URL,
-            {
-                "origin": origin_text,
-                "destination": destination_text,
-            },
+        payload = self._route_payload_via_http_from_locations(
+            origin=origin,
+            destination=destination,
+            city=(origin_city or destination_city or "").strip(),
+            route_type=route_type,
+            detailed=False,
         )
-        return self._normalize_route_payload(payload, "walking")
+        return self._normalize_route_payload(payload, "walking" if route_type == "walking" else route_type)
 
     def _plan_route_via_mcp(
         self,
@@ -774,6 +848,284 @@ class AmapService:
             "route_type": route_type,
             "description": description,
         }
+
+    def _route_payload_via_http_from_locations(
+        self,
+        origin: Location,
+        destination: Location,
+        city: str,
+        route_type: str,
+        detailed: bool,
+    ) -> Dict[str, Any]:
+        origin_text = f"{origin.longitude},{origin.latitude}"
+        destination_text = f"{destination.longitude},{destination.latitude}"
+        extensions = "all" if detailed else "base"
+
+        if route_type == "transit":
+            params: Dict[str, Any] = {
+                "origin": origin_text,
+                "destination": destination_text,
+                "city": city,
+                "cityd": city,
+                "extensions": extensions,
+            }
+            params = {key: value for key, value in params.items() if value}
+            return self._http_get_json(AMAP_TRANSIT_URL, params)
+
+        if route_type == "driving":
+            return self._http_get_json(
+                AMAP_DRIVING_URL,
+                {
+                    "origin": origin_text,
+                    "destination": destination_text,
+                    "extensions": extensions,
+                },
+            )
+
+        params: Dict[str, Any] = {
+            "origin": origin_text,
+            "destination": destination_text,
+        }
+        if detailed:
+            params["extensions"] = "all"
+        return self._http_get_json(AMAP_WALKING_URL, params)
+
+    def _normalize_day_route_stop(
+        self,
+        stop: Any,
+        city: str,
+        label: str,
+        kind: str,
+    ) -> Optional[RouteMarker]:
+        if stop is None:
+            return None
+
+        if hasattr(stop, "model_dump"):
+            data = stop.model_dump()
+        elif isinstance(stop, dict):
+            data = dict(stop)
+        else:
+            return None
+
+        title = str(data.get("name") or "").strip()
+        if not title:
+            return None
+
+        address = str(data.get("address") or "").strip()
+        location = self._parse_location(data.get("location"))
+        if location is None:
+            for candidate in [address, f"{city}{title}" if city and title else "", title]:
+                compact = str(candidate or "").strip()
+                if not compact:
+                    continue
+                try:
+                    location = self.geocode(compact, city or None)
+                except Exception as exc:
+                    logger.debug("AMap geocode failed for day route stop=%s candidate=%s error=%s", title, compact, exc)
+                    location = None
+                if location is not None:
+                    break
+        if location is None:
+            return None
+
+        return RouteMarker(
+            label=label,
+            title=title,
+            kind=kind,
+            address=address,
+            location=location,
+            image_url=str(data.get("image_url") or "").strip() or None,
+        )
+
+    def _build_day_route_segment(
+        self,
+        start: RouteMarker,
+        end: RouteMarker,
+        city: str,
+        route_type: str,
+    ) -> RouteSegment:
+        route: Dict[str, Any] | None = None
+        payload: Dict[str, Any] | None = None
+
+        if self.http_enabled:
+            try:
+                payload = self._route_payload_via_http_from_locations(
+                    origin=start.location,
+                    destination=end.location,
+                    city=city,
+                    route_type=route_type,
+                    detailed=True,
+                )
+                route = self._normalize_route_payload(payload, route_type)
+            except Exception as exc:
+                logger.warning(
+                    "AMap day route segment failed via HTTP route_type=%s start=%s end=%s error=%s",
+                    route_type,
+                    start.title,
+                    end.title,
+                    exc,
+                )
+
+        if route is None and self.mcp_enabled:
+            try:
+                route = self._plan_route_via_mcp(
+                    origin_address=start.address or start.title,
+                    destination_address=end.address or end.title,
+                    origin_city=city or None,
+                    destination_city=city or None,
+                    route_type=route_type,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "AMap day route segment failed via MCP route_type=%s start=%s end=%s error=%s",
+                    route_type,
+                    start.title,
+                    end.title,
+                    exc,
+                )
+
+        if route is None:
+            route = {
+                "distance": 0.0,
+                "duration": 0,
+                "route_type": route_type,
+                "description": "Route detail unavailable",
+            }
+
+        polyline = self._extract_route_polyline(payload, route_type, start.location, end.location)
+        if len(polyline) < 2:
+            polyline = [start.location, end.location]
+
+        return RouteSegment(
+            start_label=start.label,
+            end_label=end.label,
+            route_type=route_type,
+            distance=float(route.get("distance") or 0.0),
+            duration=int(route.get("duration") or 0),
+            description=str(route.get("description") or ""),
+            polyline=polyline,
+        )
+
+    def _extract_route_polyline(
+        self,
+        payload: Optional[Dict[str, Any]],
+        route_type: str,
+        origin: Location,
+        destination: Location,
+    ) -> List[Location]:
+        if not isinstance(payload, dict):
+            return [origin, destination]
+
+        route = payload.get("route", payload)
+        chunks: List[List[Location]] = []
+        if route_type == "transit":
+            transits = route.get("transits", []) if isinstance(route, dict) else []
+            if not transits and isinstance(payload.get("transits"), list):
+                transits = payload.get("transits", [])
+            first = transits[0] if isinstance(transits, list) and transits else {}
+            chunks = self._collect_polyline_chunks(first)
+        else:
+            paths = route.get("paths", []) if isinstance(route, dict) else []
+            first = paths[0] if isinstance(paths, list) and paths else {}
+            steps = first.get("steps", []) if isinstance(first, dict) else []
+            if isinstance(steps, list):
+                for step in steps:
+                    if isinstance(step, dict):
+                        chunks.append(self._parse_polyline_text(step.get("polyline")))
+            if not chunks and isinstance(first, dict):
+                chunks.append(self._parse_polyline_text(first.get("polyline")))
+
+        merged = self._merge_polyline_chunks(chunks)
+        return merged or [origin, destination]
+
+    @classmethod
+    def _collect_polyline_chunks(cls, value: Any) -> List[List[Location]]:
+        chunks: List[List[Location]] = []
+        if isinstance(value, dict):
+            polyline = value.get("polyline")
+            if polyline:
+                chunks.append(cls._parse_polyline_text(polyline))
+            for child in value.values():
+                chunks.extend(cls._collect_polyline_chunks(child))
+            return chunks
+        if isinstance(value, list):
+            for item in value:
+                chunks.extend(cls._collect_polyline_chunks(item))
+        return chunks
+
+    @classmethod
+    def _parse_polyline_text(cls, raw_polyline: Any) -> List[Location]:
+        if not isinstance(raw_polyline, str):
+            return []
+
+        points: List[Location] = []
+        for pair in raw_polyline.split(";"):
+            compact = pair.strip()
+            if not compact or "," not in compact:
+                continue
+            lng_text, lat_text = [part.strip() for part in compact.split(",", 1)]
+            points.append(
+                Location(
+                    longitude=cls._to_float(lng_text, 0.0),
+                    latitude=cls._to_float(lat_text, 0.0),
+                )
+            )
+        return points
+
+    @classmethod
+    def _merge_polyline_chunks(cls, chunks: Sequence[Sequence[Location]]) -> List[Location]:
+        merged: List[Location] = []
+        for chunk in chunks:
+            for point in chunk:
+                if not merged or not cls._same_location(merged[-1], point):
+                    merged.append(point)
+        return merged
+
+    @staticmethod
+    def _same_location(left: Location, right: Location) -> bool:
+        return round(float(left.longitude), 6) == round(float(right.longitude), 6) and round(
+            float(left.latitude), 6
+        ) == round(float(right.latitude), 6)
+
+    def _build_day_route_summary(
+        self,
+        ordered_stops: Sequence[RouteMarker],
+        route_type: str,
+        total_distance: float,
+        total_duration: int,
+    ) -> str:
+        if not ordered_stops:
+            return ""
+
+        sequence = " → ".join(stop.title for stop in ordered_stops)
+        route_type_label = {
+            "walking": "步行",
+            "driving": "驾车",
+            "transit": "公共交通",
+        }.get(route_type, route_type)
+        duration_text = self._format_duration(total_duration)
+        distance_text = self._format_distance(total_distance)
+        return f"建议按 {sequence} 的顺序出行，以{route_type_label}衔接，预计总里程 {distance_text}，总耗时 {duration_text}。"
+
+    @staticmethod
+    def _format_duration(duration_seconds: int) -> str:
+        if duration_seconds <= 0:
+            return "待确认"
+        total_minutes = max(1, int(round(duration_seconds / 60)))
+        hours, minutes = divmod(total_minutes, 60)
+        if hours and minutes:
+            return f"{hours}小时{minutes}分钟"
+        if hours:
+            return f"{hours}小时"
+        return f"{minutes}分钟"
+
+    @staticmethod
+    def _format_distance(distance_meters: float) -> str:
+        if distance_meters <= 0:
+            return "待确认"
+        if distance_meters >= 1000:
+            return f"{distance_meters / 1000:.1f} 公里"
+        return f"{int(round(distance_meters))} 米"
 
     def _get_poi_detail_via_http(self, poi_id: str) -> Dict[str, Any]:
         payload = self._http_get_json(

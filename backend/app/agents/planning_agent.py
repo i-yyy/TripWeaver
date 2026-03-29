@@ -303,7 +303,10 @@ class PlanningAgent:
 
         attractions_raw = day.get("attractions") if isinstance(day.get("attractions"), list) else []
         if attractions_raw:
-            attractions = [self._normalize_attraction(item, request.city) for item in attractions_raw]
+            attractions = [
+                self._normalize_attraction_with_fallback(item, request.city, default_attractions)
+                for item in attractions_raw
+            ]
         else:
             attractions = default_attractions or self._build_default_attractions(request.city, 1)[:2]
         attractions = self._enrich_attractions(attractions, default_attractions, request.city)
@@ -406,6 +409,150 @@ class PlanningAgent:
 
         return enriched
 
+    @staticmethod
+    def _normalize_photo_urls(raw_photos: Any) -> List[str]:
+        if not isinstance(raw_photos, list):
+            return []
+
+        normalized: List[str] = []
+        seen: set[str] = set()
+        for item in raw_photos:
+            if isinstance(item, dict):
+                url = item.get("url") or item.get("image") or item.get("src")
+            else:
+                url = item
+            text = str(url or "").strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            normalized.append(text)
+        return normalized
+
+    def _resolve_attraction_media(
+        self,
+        amap_service,
+        unsplash_service,
+        attraction: Attraction,
+        city: str,
+    ) -> tuple[Optional[str], List[str]]:
+        photos = list(attraction.photos or [])
+
+        if attraction.poi_id:
+            try:
+                photos = list(dict.fromkeys([*photos, *amap_service.get_poi_photo_urls(attraction.poi_id)]))
+            except Exception as exc:
+                logger.debug("AMap POI photo lookup failed poi_id=%s error=%s", attraction.poi_id, exc)
+
+        image_url = attraction.image_url or (photos[0] if photos else None)
+
+        if not image_url:
+            search_queries = [
+                f"{attraction.name} {city} 景点",
+                f"{attraction.name} {city} China landmark",
+                f"{attraction.name} {city}",
+                attraction.name,
+            ]
+            for query in search_queries:
+                image_url = unsplash_service.get_photo_url(query)
+                if image_url:
+                    break
+
+        if image_url:
+            photos = list(dict.fromkeys([image_url, *photos]))
+
+        return image_url, photos
+
+    def _normalize_attraction_with_fallback(
+        self,
+        raw_item: Any,
+        city: str,
+        fallback_attractions: Optional[List[Attraction]] = None,
+    ) -> Attraction:
+        item = raw_item if isinstance(raw_item, dict) else {}
+        name = str(item.get("name") or item.get("title") or "推荐景点")
+        address = str(item.get("address") or city)
+        fallback = self._match_attraction_fallback(name, address, fallback_attractions or [])
+        location = self._resolve_attraction_location(
+            raw_location=item.get("location"),
+            name=name,
+            address=address,
+            city=city,
+            fallback=fallback,
+        )
+        return Attraction(
+            name=name,
+            address=address,
+            location=location,
+            visit_duration=self._parse_visit_duration(item.get("visit_duration")),
+            description=str(item.get("description") or item.get("reason") or ""),
+            category=str(item.get("category") or "景点"),
+            photos=self._normalize_photo_urls(item.get("photos")),
+            image_url=str(item.get("image_url") or "") or None,
+            map_image_url=str(item.get("map_image_url") or "") or None,
+            ticket_price=self._to_int(item.get("ticket_price") or item.get("price"), 0),
+            poi_id=str(item.get("poi_id") or item.get("id") or (fallback.poi_id if fallback else "") or ""),
+        )
+
+    def _resolve_attraction_location(
+        self,
+        raw_location: Any,
+        name: str,
+        address: str,
+        city: str,
+        fallback: Optional[Attraction],
+    ) -> Location:
+        location = self._maybe_location(raw_location)
+        if location is not None:
+            return location
+
+        if fallback and fallback.location:
+            return fallback.location
+
+        amap_service = get_amap_service()
+        for candidate in [address, f"{city}{name}" if city and name else "", name]:
+            compact = str(candidate or "").strip()
+            if not compact:
+                continue
+            try:
+                location = amap_service.geocode(compact, city or None)
+            except Exception as exc:
+                logger.debug("Attraction geocode failed name=%s city=%s candidate=%s error=%s", name, city, compact, exc)
+                location = None
+            if location is not None:
+                return location
+
+        try:
+            city_location = amap_service.geocode_city_http(city)
+        except Exception as exc:
+            logger.debug("City geocode fallback failed city=%s error=%s", city, exc)
+            city_location = None
+        if city_location is not None:
+            return city_location
+
+        return self._fallback_city_location(city)
+
+    @staticmethod
+    def _match_attraction_fallback(name: str, address: str, candidates: List[Attraction]) -> Optional[Attraction]:
+        normalized_name = re.sub(r"\s+", "", name).lower()
+        normalized_address = re.sub(r"\s+", "", address).lower()
+        for candidate in candidates:
+            candidate_name = re.sub(r"\s+", "", candidate.name).lower()
+            candidate_address = re.sub(r"\s+", "", candidate.address).lower()
+            if normalized_name and normalized_name == candidate_name:
+                return candidate
+            if normalized_address and normalized_address == candidate_address:
+                return candidate
+        return None
+
+    @staticmethod
+    def _fallback_city_location(city: str) -> Location:
+        city_defaults = {
+            "beijing": (116.40, 39.90),
+            "shanghai": (121.47, 31.23),
+        }
+        longitude, latitude = city_defaults.get(city.lower(), (104.195397, 35.86166))
+        return Location(longitude=longitude, latitude=latitude)
+
     def _normalize_attraction(self, raw_item: Any, city: str) -> Attraction:
         item = raw_item if isinstance(raw_item, dict) else {}
         location = self._normalize_location(item.get("location"), city)
@@ -416,6 +563,7 @@ class PlanningAgent:
             visit_duration=self._parse_visit_duration(item.get("visit_duration")),
             description=str(item.get("description") or item.get("reason") or ""),
             category=str(item.get("category") or "景点"),
+            photos=self._normalize_photo_urls(item.get("photos")),
             image_url=str(item.get("image_url") or "") or None,
             map_image_url=str(item.get("map_image_url") or "") or None,
             ticket_price=self._to_int(item.get("ticket_price") or item.get("price"), 0),
@@ -612,7 +760,7 @@ class PlanningAgent:
 
             attractions: List[Attraction] = []
             for index, attraction in enumerate(day.attractions, start=1):
-                image_url = attraction.image_url
+                image_url, photos = self._resolve_attraction_media(amap_service, unsplash_service, attraction, trip_plan.city)
                 if not image_url:
                     image_url = unsplash_service.get_photo_url(f"{attraction.name} {trip_plan.city} 景点")
                 map_image_url = attraction.map_image_url or amap_service.build_static_map_url(
@@ -629,6 +777,7 @@ class PlanningAgent:
                     attraction.model_copy(
                         update={
                             "image_url": image_url,
+                            "photos": photos,
                             "map_image_url": map_image_url,
                             "description": description,
                         }

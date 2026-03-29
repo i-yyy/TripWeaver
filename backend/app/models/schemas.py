@@ -71,6 +71,20 @@ class RouteRequest(BaseModel):
     route_type: str = Field(default="walking", description="walking/driving/transit")
 
 
+class DayRouteStopRequest(BaseModel):
+    name: str = Field(..., description="Stop name")
+    address: str = Field(default="", description="Stop address")
+    location: Optional["Location"] = Field(default=None, description="Preferred stop coordinates")
+    image_url: Optional[str] = Field(default=None, description="Stop image url")
+
+
+class DayRouteRequest(BaseModel):
+    city: str = Field(default="", description="Destination city")
+    route_type: str = Field(default="walking", description="walking/driving/transit")
+    hotel: Optional[DayRouteStopRequest] = Field(default=None, description="Hotel stop")
+    attractions: List[DayRouteStopRequest] = Field(default_factory=list, description="Ordered attractions")
+
+
 class FeedbackCreateRequest(BaseModel):
     """Feedback request from frontend."""
 
@@ -211,6 +225,35 @@ class RouteInfo(BaseModel):
     description: str
 
 
+class RouteMarker(BaseModel):
+    label: str
+    title: str
+    kind: str
+    address: str = ""
+    location: Location
+    image_url: Optional[str] = None
+
+
+class RouteSegment(BaseModel):
+    start_label: str
+    end_label: str
+    route_type: str
+    distance: float = 0.0
+    duration: int = 0
+    description: str = ""
+    polyline: List[Location] = Field(default_factory=list)
+
+
+class DayRouteInfo(BaseModel):
+    route_type: str
+    summary: str = ""
+    distance: float = 0.0
+    duration: int = 0
+    markers: List[RouteMarker] = Field(default_factory=list)
+    segments: List[RouteSegment] = Field(default_factory=list)
+    fallback_static_map_url: Optional[str] = None
+
+
 class UserProfileData(BaseModel):
     user_id: str
     preferred_transportation: Optional[str] = None
@@ -254,6 +297,12 @@ class RouteResponse(BaseModel):
     success: bool
     message: str = ""
     data: Optional[RouteInfo] = None
+
+
+class DayRouteResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[DayRouteInfo] = None
 
 
 class WeatherResponse(BaseModel):

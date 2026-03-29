@@ -25,6 +25,8 @@ class UnsplashService:
             图片列表
         """
         try:
+            if not self.access_key or not str(query).strip():
+                return []
             url = f"{self.base_url}/search/photos"
             params = {
                 "query": query,
