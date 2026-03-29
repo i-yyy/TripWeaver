@@ -463,6 +463,31 @@ class AmapService:
         self._trace_geocode_result(address, city, result)
         return result
 
+    def geocode_city_http(self, city: str) -> Optional[Location]:
+        normalized_city = city.strip()
+        if not normalized_city:
+            return None
+
+        candidates = [normalized_city]
+        if normalized_city[-1] not in {"市", "区", "县", "州", "盟", "旗"}:
+            candidates.append(f"{normalized_city}市")
+
+        last_result: Optional[Location] = None
+        last_error: Exception | None = None
+        for candidate in candidates:
+            try:
+                result = self._geocode_via_http(candidate, candidate)
+                self._trace_geocode_result(candidate, candidate, result)
+                if result is not None:
+                    return result
+                last_result = result
+            except Exception as exc:
+                last_error = exc
+                logger.warning("AMap city geocode failed for candidate=%s: %s", candidate, exc)
+        if last_error is not None:
+            raise last_error
+        return last_result
+
     def get_poi_detail(self, poi_id: str) -> Dict[str, Any]:
         cache_key = poi_id.strip()
         with self._poi_detail_cache_lock:

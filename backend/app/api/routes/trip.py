@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
 from ...agents.trip_planner_agent import get_trip_planner_agent
+from ...db.models import User
 from ...models.schemas import RecommendationReason, TripPlanResponse, TripRequest
 from ...services.memory_service import get_memory_service
 from ...services.profile_service import get_profile_service
 from ...services.retriever_service import get_retriever_service
+from ...services.security_service import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +34,12 @@ def _tool_count(agent: object) -> int:
 
 
 @router.post("/plan", response_model=TripPlanResponse, summary="Generate a trip plan")
-async def plan_trip(request: TripRequest) -> TripPlanResponse:
+async def plan_trip(
+    request: TripRequest,
+    current_user: User = Depends(get_current_user),
+) -> TripPlanResponse:
     try:
+        request.user_id = current_user.id
         profile_service = get_profile_service()
         memory_service = get_memory_service()
         retriever_service = get_retriever_service()

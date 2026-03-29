@@ -10,6 +10,7 @@ from sqlmodel import select
 from ..db.database import session_scope
 from ..db.models import MemoryItem, TripHistory
 from ..models.schemas import FeedbackCreateRequest, MemoryFact, TripPlan, TripRequest
+from .amap_service import get_amap_service
 
 
 class MemoryService:
@@ -74,6 +75,16 @@ class MemoryService:
             f"共 {len(plan.days)} 天，包含 {len(attractions)} 个景点"
         )
 
+        city_longitude = None
+        city_latitude = None
+        try:
+            city_location = get_amap_service().geocode_city_http(request.city)
+            if city_location is not None:
+                city_longitude = city_location.longitude
+                city_latitude = city_location.latitude
+        except Exception as exc:  # pragma: no cover - external dependency
+            print(f"Trip history geocode failed: {exc}")
+
         trip_history = TripHistory(
             user_id=request.user_id,
             session_id=request.session_id,
@@ -83,6 +94,8 @@ class MemoryService:
             trip_summary=summary,
             selected_attractions=attractions,
             plan_json=plan.model_dump(),
+            city_longitude=city_longitude,
+            city_latitude=city_latitude,
         )
 
         episodic_memory = MemoryItem(

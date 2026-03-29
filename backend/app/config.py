@@ -7,11 +7,13 @@ from pathlib import Path
 from typing import List
 
 from dotenv import load_dotenv
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 APP_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = APP_DIR.parent
 PROJECT_ROOT = BACKEND_DIR.parent
+DEFAULT_DB_PATH = (BACKEND_DIR / "trip_planner.db").resolve()
 
 
 def _load_env_files() -> None:
@@ -54,8 +56,11 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4"
+    jwt_secret_key: str = "dev-secret-key-change-me-before-production-1234567890"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 60 * 24 * 7
 
-    database_url: str = "sqlite:///./trip_planner.db"
+    database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str = ""
@@ -76,6 +81,18 @@ class Settings(BaseSettings):
     class Config:
         case_sensitive = False
         extra = "ignore"
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def parse_debug_value(cls, value: object) -> object:
+        """Accept common environment-style debug flags."""
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on", "debug"}:
+                return True
+            if normalized in {"0", "false", "no", "off", "release", "prod", "production"}:
+                return False
+        return value
 
     def get_cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

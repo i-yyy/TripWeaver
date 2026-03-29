@@ -8,7 +8,7 @@ from starlette.responses import Response
 
 from ..config import get_settings, print_config, validate_config
 from ..db.database import init_db
-from .routes import feedback, kb, map as map_routes, poi, trip, user
+from .routes import auth, feedback, kb, map as map_routes, poi, tracks, trip, user
 
 settings = get_settings()
 
@@ -29,11 +29,13 @@ app.add_middleware(
 )
 
 app.include_router(trip.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 app.include_router(poi.router, prefix="/api")
 app.include_router(map_routes.router, prefix="/api")
 app.include_router(user.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(kb.router, prefix="/api")
+app.include_router(tracks.router, prefix="/api")
 
 
 @app.middleware("http")

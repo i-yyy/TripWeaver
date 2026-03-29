@@ -210,12 +210,14 @@ import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { submitFeedback } from '@/services/api'
 import type { FeedbackPayload, RecommendationReason, TripPlan } from '@/types'
+import { useAuthState } from '@/utils/auth'
 
 const router = useRouter()
+const authState = useAuthState()
 const tripPlan = ref<TripPlan | null>(null)
 const originalPlan = ref<TripPlan | null>(null)
 const editMode = ref(false)
-const currentUserId = ref(sessionStorage.getItem('tripPlannerUserId') || localStorage.getItem('trip_planner_user_id') || '')
+const currentUserId = ref(authState.user?.id || sessionStorage.getItem('tripPlannerUserId') || '')
 const currentSessionId = ref(sessionStorage.getItem('tripPlannerSessionId') || '')
 const recommendationReasons = computed<RecommendationReason[]>(() => tripPlan.value?.recommendation_reasons || [])
 
@@ -227,7 +229,7 @@ onMounted(() => {
 })
 
 const goBack = () => {
-  router.push('/')
+  router.push('/planner')
 }
 
 const goKBEval = () => {

@@ -151,6 +151,63 @@ export interface UserProfileResponse {
   data?: UserProfileData
 }
 
+export interface AuthUserData {
+  id: string
+  email: string
+  nickname: string
+  is_active: boolean
+  created_at?: string
+}
+
+export interface AuthRegisterPayload {
+  nickname: string
+  email: string
+  password: string
+}
+
+export interface AuthLoginPayload {
+  email: string
+  password: string
+}
+
+export interface UpdateProfilePayload {
+  nickname: string
+  email: string
+}
+
+export interface AuthChangePasswordPayload {
+  current_password: string
+  new_password: string
+}
+
+export interface AuthUserResponse {
+  success: boolean
+  message: string
+  data?: AuthUserData
+}
+
+export interface AuthLoginResponse extends AuthUserResponse {
+  access_token: string
+  token_type: string
+}
+
+export interface TravelTrackItem {
+  id: string
+  city: string
+  start_date: string
+  end_date: string
+  searched_at: string
+  trip_summary: string
+  city_longitude?: number | null
+  city_latitude?: number | null
+}
+
+export interface TravelTracksResponse {
+  success: boolean
+  message: string
+  data: TravelTrackItem[]
+}
+
 export interface KBEvaluatePayload {
   query: string
   city?: string | null

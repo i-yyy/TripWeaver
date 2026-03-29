@@ -1,24 +1,30 @@
-"""反馈路由。"""
+"""Feedback API routes."""
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from ...db.models import User
 from ...models.schemas import FeedbackCreateRequest, FeedbackResponse
 from ...services.feedback_service import get_feedback_service
+from ...services.security_service import get_current_user
 
-router = APIRouter(prefix="/feedback", tags=["反馈"])
+router = APIRouter(prefix="/feedback", tags=["feedback"])
 
 
 @router.post(
     "/submit",
     response_model=FeedbackResponse,
-    summary="提交反馈",
-    description="提交景点/酒店/整体行程反馈，用于个性化学习。",
+    summary="Submit feedback",
+    description="Store attraction, hotel, or trip feedback for personalization.",
 )
-async def submit_feedback(payload: FeedbackCreateRequest) -> FeedbackResponse:
+async def submit_feedback(
+    payload: FeedbackCreateRequest,
+    current_user: User = Depends(get_current_user),
+) -> FeedbackResponse:
     try:
+        payload.user_id = current_user.id
         feedback_id = get_feedback_service().create_feedback(payload)
-        return FeedbackResponse(success=True, message="反馈提交成功", feedback_id=feedback_id)
+        return FeedbackResponse(success=True, message="Feedback submitted successfully", feedback_id=feedback_id)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"反馈提交失败: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"Failed to submit feedback: {exc}") from exc
