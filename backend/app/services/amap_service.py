@@ -9,6 +9,7 @@ import logging
 import shutil
 import sys
 import threading
+import urllib.parse
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, TypeVar
 
@@ -307,6 +308,31 @@ class AmapService:
             "amap_key_configured": bool(self.api_key),
             "mcp_connected": self.mcp_tool is not None,
         }
+
+    def build_static_map_url(
+        self,
+        locations: Sequence[Location],
+        labels: Optional[Sequence[str]] = None,
+        zoom: int = 12,
+        size: str = "750*420",
+    ) -> Optional[str]:
+        if not self.api_key or not locations:
+            return None
+
+        label_values = list(labels or [])
+        marker_specs: List[str] = []
+        for index, location in enumerate(locations):
+            label = label_values[index] if index < len(label_values) else chr(65 + min(index, 25))
+            marker_specs.append(f"mid,0xFF6B35,{label}:{location.longitude},{location.latitude}")
+
+        params = {
+            "key": self.api_key,
+            "zoom": str(zoom),
+            "size": size,
+            "scale": "2",
+            "markers": "|".join(marker_specs),
+        }
+        return "https://restapi.amap.com/v3/staticmap?" + urllib.parse.urlencode(params)
 
     @staticmethod
     def _runtime_trace(message: str) -> None:

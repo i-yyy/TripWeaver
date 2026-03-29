@@ -1,16 +1,16 @@
 <template>
   <div class="result-page">
     <div class="header-row">
-      <a-space>
+      <a-space wrap>
         <a-button size="large" @click="goBack">返回首页</a-button>
-        <a-button @click="goKBEval">RAG评测</a-button>
+        <a-button @click="goKBEval">RAG 评测</a-button>
       </a-space>
-      <a-space>
+      <a-space wrap>
         <a-button v-if="!editMode" @click="toggleEditMode">编辑行程</a-button>
         <a-button v-if="editMode" type="primary" @click="saveChanges">保存修改</a-button>
         <a-button v-if="editMode" @click="cancelEdit">取消</a-button>
-        <a-button v-if="tripPlan" @click="submitPlanFeedback('satisfied')">👍 满意</a-button>
-        <a-button v-if="tripPlan" danger @click="submitPlanFeedback('unsatisfied')">👎 不满意</a-button>
+        <a-button v-if="tripPlan" @click="submitPlanFeedback('satisfied')">满意</a-button>
+        <a-button v-if="tripPlan" danger @click="submitPlanFeedback('unsatisfied')">不满意</a-button>
       </a-space>
     </div>
 
@@ -47,14 +47,14 @@
         </a-list>
       </a-card>
 
-      <a-card v-if="tripPlan.budget" :bordered="false" class="budget-card" title="预算">
+      <a-card v-if="tripPlan.budget" :bordered="false" class="budget-card" title="预算汇总">
         <a-row :gutter="12">
-          <a-col :span="6">景点：￥{{ tripPlan.budget.total_attractions }}</a-col>
-          <a-col :span="6">酒店：￥{{ tripPlan.budget.total_hotels }}</a-col>
-          <a-col :span="6">餐饮：￥{{ tripPlan.budget.total_meals }}</a-col>
-          <a-col :span="6">交通：￥{{ tripPlan.budget.total_transportation }}</a-col>
+          <a-col :span="6">景点：¥{{ tripPlan.budget.total_attractions }}</a-col>
+          <a-col :span="6">酒店：¥{{ tripPlan.budget.total_hotels }}</a-col>
+          <a-col :span="6">餐饮：¥{{ tripPlan.budget.total_meals }}</a-col>
+          <a-col :span="6">交通：¥{{ tripPlan.budget.total_transportation }}</a-col>
         </a-row>
-        <h3 style="margin-top: 12px">总计：￥{{ tripPlan.budget.total }}</h3>
+        <h3 style="margin-top: 12px">总计：¥{{ tripPlan.budget.total }}</h3>
       </a-card>
 
       <a-card :bordered="false" title="每日行程">
@@ -62,11 +62,53 @@
           <a-collapse-panel
             v-for="(day, dayIndex) in tripPlan.days"
             :key="dayIndex"
-            :header="`第 ${day.day_index + 1} 天 - ${day.date}`"
+            :header="`第${day.day_index + 1}天 - ${day.date}`"
           >
-            <p><strong>描述：</strong>{{ day.description }}</p>
-            <p><strong>交通：</strong>{{ day.transportation }}</p>
-            <p><strong>住宿：</strong>{{ day.accommodation }}</p>
+            <div class="day-section">
+              <p><strong>当日概览：</strong>{{ day.description }}</p>
+              <p><strong>交通方式：</strong>{{ day.transportation }}</p>
+              <p v-if="day.transportation_detail"><strong>交通说明：</strong>{{ day.transportation_detail }}</p>
+              <p><strong>交通费用：</strong>{{ currency(day.transportation_cost) }}</p>
+              <p><strong>住宿安排：</strong>{{ day.accommodation }}</p>
+            </div>
+
+            <a-card v-if="day.hotel" size="small" class="sub-card" title="住宿推荐">
+              <div class="entity-grid">
+                <img
+                  v-if="day.hotel.map_image_url"
+                  class="map-image"
+                  :src="day.hotel.map_image_url"
+                  :alt="`${day.hotel.name}地图`"
+                />
+                <div>
+                  <p><strong>酒店：</strong>{{ day.hotel.name }}</p>
+                  <p><strong>地址：</strong>{{ day.hotel.address || '暂无' }}</p>
+                  <p><strong>类型：</strong>{{ day.hotel.type || '暂无' }}</p>
+                  <p><strong>价格区间：</strong>{{ day.hotel.price_range || '暂无' }}</p>
+                  <p><strong>参考评分：</strong>{{ day.hotel.rating || '暂无' }}</p>
+                  <p><strong>参考价格：</strong>{{ currency(day.hotel.estimated_cost) }}/晚</p>
+                </div>
+              </div>
+            </a-card>
+
+            <a-card
+              v-if="day.route_summary || day.route_map_url"
+              size="small"
+              class="sub-card"
+              title="路线与地图"
+            >
+              <div class="entity-grid">
+                <img
+                  v-if="day.route_map_url"
+                  class="route-image"
+                  :src="day.route_map_url"
+                  :alt="`第${day.day_index + 1}天路线图`"
+                />
+                <div>
+                  <p><strong>路线摘要：</strong>{{ day.route_summary || '暂无路线摘要' }}</p>
+                </div>
+              </div>
+            </a-card>
 
             <a-divider orientation="left">景点</a-divider>
             <a-list :data-source="day.attractions">
@@ -81,23 +123,50 @@
                           size="small"
                           @click="moveAttraction(dayIndex, index, 'down')"
                           :disabled="index === day.attractions.length - 1"
-                        >下移</a-button>
+                        >
+                          下移
+                        </a-button>
                         <a-button size="small" danger @click="deleteAttraction(dayIndex, index)">删除</a-button>
                       </a-space>
                     </template>
 
                     <div v-if="editMode">
                       <a-input v-model:value="item.address" placeholder="地址" style="margin-bottom: 8px" />
-                      <a-input-number v-model:value="item.visit_duration" :min="10" :max="480" style="width: 100%; margin-bottom: 8px" />
-                      <a-textarea v-model:value="item.description" :rows="2" />
+                      <a-input-number
+                        v-model:value="item.visit_duration"
+                        :min="10"
+                        :max="480"
+                        style="width: 100%; margin-bottom: 8px"
+                      />
+                      <a-input-number
+                        v-model:value="item.ticket_price"
+                        :min="0"
+                        style="width: 100%; margin-bottom: 8px"
+                      />
+                      <a-textarea v-model:value="item.description" :rows="5" />
                     </div>
                     <div v-else>
+                      <div class="entity-grid">
+                        <img
+                          v-if="item.image_url"
+                          class="entity-image"
+                          :src="item.image_url"
+                          :alt="item.name"
+                        />
+                        <img
+                          v-if="item.map_image_url"
+                          class="map-image"
+                          :src="item.map_image_url"
+                          :alt="`${item.name}地图`"
+                        />
+                      </div>
                       <p><strong>地址：</strong>{{ item.address }}</p>
-                      <p><strong>时长：</strong>{{ item.visit_duration }} 分钟</p>
-                      <p><strong>描述：</strong>{{ item.description }}</p>
+                      <p><strong>建议停留：</strong>{{ item.visit_duration }} 分钟</p>
+                      <p><strong>门票参考：</strong>{{ currency(item.ticket_price) }}</p>
+                      <p><strong>景点描述：</strong>{{ item.description }}</p>
                       <a-space>
-                        <a-button size="small" @click="submitAttractionFeedback(item.name, 'like')">👍 喜欢</a-button>
-                        <a-button size="small" danger @click="submitAttractionFeedback(item.name, 'dislike')">👎 不喜欢</a-button>
+                        <a-button size="small" @click="submitAttractionFeedback(item.name, 'like')">喜欢</a-button>
+                        <a-button size="small" danger @click="submitAttractionFeedback(item.name, 'dislike')">不喜欢</a-button>
                       </a-space>
                     </div>
                   </a-card>
@@ -108,7 +177,13 @@
             <a-divider orientation="left">餐饮</a-divider>
             <a-list :data-source="day.meals">
               <template #renderItem="{ item }">
-                <a-list-item>{{ mealLabel(item.type) }}: {{ item.name }}{{ item.description ? ` - ${item.description}` : '' }}</a-list-item>
+                <a-list-item>
+                  <a-card style="width: 100%">
+                    <template #title>{{ mealLabel(item.type) }}：{{ item.name }}</template>
+                    <p><strong>人均预算：</strong>{{ currency(item.estimated_cost) }}</p>
+                    <p><strong>推荐理由：</strong>{{ item.description || '暂无说明' }}</p>
+                  </a-card>
+                </a-list-item>
               </template>
             </a-list>
           </a-collapse-panel>
@@ -119,7 +194,8 @@
         <a-list :data-source="tripPlan.weather_info">
           <template #renderItem="{ item }">
             <a-list-item>
-              {{ item.date }} - 白天 {{ item.day_weather }} {{ item.day_temp }}°C / 夜间 {{ item.night_weather }} {{ item.night_temp }}°C
+              {{ item.date }} - 白天 {{ item.day_weather }} {{ item.day_temp }}°C / 夜间 {{ item.night_weather }}
+              {{ item.night_temp }}°C
             </a-list-item>
           </template>
         </a-list>
@@ -271,6 +347,11 @@ const formatSourceDoc = (docPath: string) => {
   const segments = normalized.split('/')
   return segments[segments.length - 1] || docPath
 }
+
+const currency = (value?: number) => {
+  const amount = Number(value || 0)
+  return amount > 0 ? `¥${amount}` : '待确认'
+}
 </script>
 
 <style scoped>
@@ -284,6 +365,7 @@ const formatSourceDoc = (docPath: string) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 16px;
 }
 
@@ -293,11 +375,44 @@ const formatSourceDoc = (docPath: string) => {
   margin-bottom: 16px;
 }
 
+.day-section {
+  margin-bottom: 12px;
+}
+
+.sub-card {
+  margin-bottom: 16px;
+}
+
+.entity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.entity-image,
+.map-image,
+.route-image {
+  width: 100%;
+  border-radius: 12px;
+  object-fit: cover;
+  background: #eef2f8;
+}
+
+.entity-image {
+  min-height: 180px;
+  max-height: 240px;
+}
+
+.map-image,
+.route-image {
+  min-height: 160px;
+}
+
 @media (max-width: 900px) {
   .header-row {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
   }
 }
 </style>

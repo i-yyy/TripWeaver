@@ -12,6 +12,7 @@ export interface Attraction {
   category?: string
   rating?: number
   image_url?: string
+  map_image_url?: string
   ticket_price?: number
 }
 
@@ -33,6 +34,7 @@ export interface Hotel {
   distance: string
   type: string
   estimated_cost?: number
+  map_image_url?: string
 }
 
 export interface Budget {
@@ -59,10 +61,14 @@ export interface DayPlan {
   day_index: number
   description: string
   transportation: string
+  transportation_detail?: string
+  transportation_cost?: number
   accommodation: string
   hotel?: Hotel
   attractions: Attraction[]
   meals: Meal[]
+  route_summary?: string
+  route_map_url?: string
 }
 
 export interface WeatherInfo {

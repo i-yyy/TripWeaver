@@ -13,44 +13,67 @@ from hello_agents import SimpleAgent
 
 from ..models.agent_schemas import AgentExecutionStatus, PlanningAgentInput, PlanningAgentOutput
 from ..models.schemas import Attraction, Budget, DayPlan, Hotel, Location, Meal, TripPlan, WeatherInfo
+from ..services.amap_service import get_amap_service
 from ..services.llm_service import get_llm
+from ..services.unsplash_service import get_unsplash_service
 
 logger = logging.getLogger(__name__)
 
 PLANNER_AGENT_PROMPT = """
-You are a travel itinerary planner.
-You receive structured attraction, hotel, weather, profile, memory and RAG context.
-Your job is only to generate a JSON object for the final trip plan.
+你是一名专业旅行规划助手。
+你会收到结构化的景点、酒店、天气、用户画像、记忆和 RAG 上下文。
+你的任务是只返回最终 trip plan 的 JSON 对象。
 
-Rules:
-1. Return JSON only. No markdown, no prose before or after JSON.
-2. Keep the response compatible with this schema:
+规则：
+1. 只能返回 JSON。不要返回 Markdown，不要在 JSON 前后添加任何解释。
+2. 所有可读文本字段必须使用简体中文，包括城市说明、景点描述、餐饮描述、交通说明、住宿说明、整体建议。
+3. 除非是官方专有名称，否则不要输出英文；如果输入上下文里有英文名称，优先转换为自然中文表达。
+4. 严格兼容以下结构：
 {
-  "city": "string",
+  "city": "中文城市名",
   "start_date": "YYYY-MM-DD",
   "end_date": "YYYY-MM-DD",
   "days": [
     {
       "date": "YYYY-MM-DD",
       "day_index": 0,
-      "description": "string",
-      "transportation": "string",
-      "accommodation": "string",
+      "description": "中文详细日程概述",
+      "transportation": "中文交通方式",
+      "transportation_detail": "中文交通安排说明，需说明为什么这样安排",
+      "transportation_cost": 0,
+      "accommodation": "中文住宿说明",
+      "route_summary": "中文路线摘要，说明先后顺序与衔接逻辑",
       "hotel": {
-        "name": "string",
-        "address": "string",
-        "price_range": "string",
-        "rating": "string",
-        "distance": "string",
-        "type": "string",
+        "name": "中文酒店名称",
+        "address": "中文地址",
+        "price_range": "价格等级",
+        "rating": "评分或口碑",
+        "distance": "距离说明",
+        "type": "酒店类型",
         "estimated_cost": 0
       },
-      "attractions": [],
-      "meals": []
+      "attractions": [
+        {
+          "name": "中文景点名",
+          "address": "中文地址",
+          "visit_duration": 120,
+          "description": "80-160字中文描述，至少包含核心看点、适合原因、建议时长、最佳游览时段或注意事项",
+          "category": "景点分类",
+          "ticket_price": 0
+        }
+      ],
+      "meals": [
+        {
+          "type": "breakfast/lunch/dinner",
+          "name": "中文餐饮建议",
+          "description": "中文说明吃什么，以及为什么这样安排，需结合当天景点、时段、预算或当地特色",
+          "estimated_cost": 0
+        }
+      ]
     }
   ],
   "weather_info": [],
-  "overall_suggestions": "string",
+  "overall_suggestions": "中文整体建议",
   "budget": {
     "total_attractions": 0,
     "total_hotels": 0,
@@ -59,9 +82,12 @@ Rules:
     "total": 0
   }
 }
-3. Use only the provided structured context. Do not invent new cities or dates.
-4. Each day should include 2-3 attractions, 3 meals, and one hotel recommendation when available.
-5. Respect weather advice, mobility needs, and budget level.
+5. 只能使用提供的结构化上下文，不要编造新的城市、日期、酒店或景点。
+6. 每天包含 2-3 个景点、3 餐、1 个酒店建议。
+7. 景点、酒店、餐饮、交通都尽量给出价格或费用估算，不要留空。
+8. 景点描述不能空泛，禁止使用“适合作为候选景点”“值得一去”等无信息量表达作为主体内容。
+9. 餐饮描述必须回答两个问题：吃什么、为什么吃。
+10. 必须结合天气建议、行动需求、预算等级和陪同人群。
 """
 
 
@@ -82,6 +108,7 @@ class PlanningAgent:
         try:
             raw_response = await asyncio.to_thread(self.planner_runner.run, prompt)
             trip_plan = self._parse_response(raw_response, payload)
+            trip_plan = await asyncio.to_thread(self._enrich_trip_plan, trip_plan, payload)
             return PlanningAgentOutput(
                 status=AgentExecutionStatus(success=True, degraded=False, warnings=[]),
                 trip_plan=trip_plan,
@@ -91,6 +118,7 @@ class PlanningAgent:
             warning = f"Planning agent fell back to deterministic plan: {exc}"
             logger.warning(warning)
             trip_plan = self.build_fallback_plan(payload)
+            trip_plan = await asyncio.to_thread(self._enrich_trip_plan, trip_plan, payload)
             return PlanningAgentOutput(
                 status=AgentExecutionStatus(success=False, degraded=True, warnings=[warning], error=str(exc)),
                 trip_plan=trip_plan,
@@ -117,12 +145,15 @@ class PlanningAgent:
                 DayPlan(
                     date=date_text,
                     day_index=day_index,
-                    description=f"Day {day_index + 1} focuses on accessible highlights in {request.city}.",
+                    description=f"第{day_index + 1}天以{request.city}的核心看点为主，安排舒适且便于衔接的游览节奏。",
                     transportation=request.transportation,
+                    transportation_detail=self._default_transportation_detail(request, day_attractions, hotel),
+                    transportation_cost=self._estimate_transportation_cost(request.transportation, day_attractions),
                     accommodation=hotel.name if hotel else request.accommodation,
                     hotel=hotel,
                     attractions=day_attractions,
                     meals=meals,
+                    route_summary=self._build_route_summary(day_attractions, request.transportation),
                 )
             )
 
@@ -130,8 +161,8 @@ class PlanningAgent:
         overall_suggestions = " ".join(
             suggestions
             or [
-                f"This fallback itinerary covers {request.city} for {request.travel_days} day(s).",
-                "Confirm opening hours and live weather before departure.",
+                f"这份备选行程覆盖{request.city}{request.travel_days}天的核心安排。",
+                "出发前请确认开放时间、实时天气以及交通情况。",
             ]
         )
         return TripPlan(
@@ -162,7 +193,11 @@ class PlanningAgent:
             "warnings": payload.supervisor_warnings,
         }
         context_json = json.dumps(structured_context, ensure_ascii=False, indent=2)
-        return f"Generate a trip plan from this structured context:\n{context_json}"
+        return (
+            "请基于以下结构化上下文生成中文旅行计划 JSON。"
+            "再次强调：只能输出 JSON，所有说明必须使用简体中文。\n"
+            f"{context_json}"
+        )
 
     def _parse_response(self, response: Any, payload: PlanningAgentInput) -> TripPlan:
         json_str = self._extract_json(str(response))
@@ -237,7 +272,7 @@ class PlanningAgent:
             data.get("overall_suggestions")
             or data.get("summary")
             or payload.weather_result.summary
-            or f"{request.city} {request.travel_days}-day itinerary."
+            or f"{request.city}{request.travel_days}天行程建议。"
         )
 
         return {
@@ -281,16 +316,31 @@ class PlanningAgent:
 
         hotel = self._normalize_hotel(day.get("hotel")) if isinstance(day.get("hotel"), dict) else default_hotel
         accommodation = str(day.get("accommodation") or (hotel.name if hotel else request.accommodation))
+        transportation = str(day.get("transportation") or request.transportation)
+        transportation_detail = str(
+            day.get("transportation_detail")
+            or day.get("transportation_reason")
+            or self._default_transportation_detail(request, attractions, hotel)
+        )
+        transportation_cost = self._to_int(
+            day.get("transportation_cost"),
+            self._estimate_transportation_cost(transportation, attractions),
+        )
+        route_summary = str(day.get("route_summary") or self._build_route_summary(attractions, transportation))
 
         return DayPlan(
             date=date_text,
             day_index=self._to_int(day.get("day_index"), day_index),
-            description=str(day.get("description") or day.get("theme") or f"Day {day_index + 1} itinerary"),
-            transportation=str(day.get("transportation") or request.transportation),
+            description=str(day.get("description") or day.get("theme") or f"第{day_index + 1}天行程安排"),
+            transportation=transportation,
+            transportation_detail=transportation_detail,
+            transportation_cost=transportation_cost,
             accommodation=accommodation,
             hotel=hotel,
             attractions=attractions,
             meals=meals,
+            route_summary=route_summary,
+            route_map_url=str(day.get("route_map_url") or "") or None,
         )
 
     def _enrich_attractions(
@@ -309,8 +359,9 @@ class PlanningAgent:
                 description = fallback.description.strip()
             if not description:
                 description = (
-                    f"{attraction.name} is a recommended stop in {city}, suitable for a "
-                    f"{max(30, attraction.visit_duration)} minute visit."
+                    f"{attraction.name}位于{attraction.address or city}，适合作为当天行程的重要一站。"
+                    f"核心看点包括当地代表性景观与适合拍照或慢逛的区域，建议停留"
+                    f"{max(30, attraction.visit_duration)}分钟，并尽量避开最拥挤的时段前往。"
                 )
 
             enriched.append(
@@ -332,11 +383,15 @@ class PlanningAgent:
             fallback = defaults_by_type.get(meal.type)
             name = meal.name.strip()
             if not name or name.endswith("recommendation"):
-                name = fallback.name if fallback else f"{meal.type.title()} in {request.city}"
+                name = fallback.name if fallback else f"{request.city}{self._meal_type_label(meal.type)}建议"
 
             description = (meal.description or "").strip()
             if not description:
-                description = fallback.description if fallback else f"A {meal.type} option in {request.city}."
+                description = (
+                    fallback.description
+                    if fallback
+                    else f"推荐在{request.city}安排{self._meal_type_label(meal.type)}，既能补充体力，也方便衔接当天行程。"
+                )
 
             estimated_cost = meal.estimated_cost or (fallback.estimated_cost if fallback else 0)
             enriched.append(
@@ -355,12 +410,14 @@ class PlanningAgent:
         item = raw_item if isinstance(raw_item, dict) else {}
         location = self._normalize_location(item.get("location"), city)
         return Attraction(
-            name=str(item.get("name") or item.get("title") or "Recommended attraction"),
+            name=str(item.get("name") or item.get("title") or "推荐景点"),
             address=str(item.get("address") or city),
             location=location,
             visit_duration=self._parse_visit_duration(item.get("visit_duration")),
             description=str(item.get("description") or item.get("reason") or ""),
-            category=str(item.get("category") or "attraction"),
+            category=str(item.get("category") or "景点"),
+            image_url=str(item.get("image_url") or "") or None,
+            map_image_url=str(item.get("map_image_url") or "") or None,
             ticket_price=self._to_int(item.get("ticket_price") or item.get("price"), 0),
             poi_id=str(item.get("poi_id") or item.get("id") or ""),
         )
@@ -392,6 +449,7 @@ class PlanningAgent:
             distance=str(item.get("distance") or ""),
             type=str(item.get("type") or ""),
             estimated_cost=self._to_int(item.get("estimated_cost"), 0),
+            map_image_url=str(item.get("map_image_url") or "") or None,
         )
 
     def _normalize_budget(self, raw_budget: Any, days: List[DayPlan]) -> Budget:
@@ -417,7 +475,7 @@ class PlanningAgent:
         total_attractions = sum(attraction.ticket_price for day in days for attraction in day.attractions)
         total_hotels = sum((day.hotel.estimated_cost if day.hotel else 0) for day in days)
         total_meals = sum(meal.estimated_cost for day in days for meal in day.meals)
-        total_transportation = max(0, len(days) * 40)
+        total_transportation = sum(day.transportation_cost for day in days)
         total = total_attractions + total_hotels + total_meals + total_transportation
         return Budget(
             total_attractions=total_attractions,
@@ -440,12 +498,15 @@ class PlanningAgent:
         count = max(2, travel_days * 2)
         return [
             Attraction(
-                name=f"{city} highlight {index + 1}",
+                name=f"{city}精选景点{index + 1}",
                 address=city,
                 location=Location(longitude=116.40 + 0.01 * index, latitude=39.90 + 0.01 * index),
                 visit_duration=120,
-                description=f"Fallback attraction candidate in {city}.",
-                category="attraction",
+                description=(
+                    f"这是{city}的精选候选景点，适合作为当日核心游览内容。"
+                    f"建议重点关注当地代表性风貌、适合拍照或慢逛的区域，并预留两小时左右游览时间。"
+                ),
+                category="景点",
                 ticket_price=50,
             )
             for index in range(count)
@@ -455,9 +516,24 @@ class PlanningAgent:
         budget = request.budget_level or "medium"
         base_cost = {"low": 30, "medium": 60, "high": 120}.get(budget, 60)
         return [
-            Meal(type="breakfast", name="Local breakfast", description="Simple breakfast near the first stop.", estimated_cost=base_cost // 2),
-            Meal(type="lunch", name="Regional lunch", description="Lunch close to the midday attraction.", estimated_cost=base_cost),
-            Meal(type="dinner", name="Relaxed dinner", description="Dinner near the hotel area.", estimated_cost=base_cost + 20),
+            Meal(
+                type="breakfast",
+                name="本地特色早餐",
+                description="推荐选择离当天首个景点较近的早餐，吃些本地常见早点，出发方便也能快速补充体力。",
+                estimated_cost=base_cost // 2,
+            ),
+            Meal(
+                type="lunch",
+                name="当地主打午餐",
+                description="午餐建议安排在上午景点和下午景点之间，优先选择本地代表菜或口碑稳定的家常餐厅，节省折返时间。",
+                estimated_cost=base_cost,
+            ),
+            Meal(
+                type="dinner",
+                name="轻松晚餐",
+                description="晚餐建议靠近酒店或晚间活动区域，方便休息返程，同时体验当地风味或更舒适的正餐选择。",
+                estimated_cost=base_cost + 20,
+            ),
         ]
 
     def _merge_meals(self, current: List[Meal], defaults: List[Meal]) -> List[Meal]:
@@ -467,6 +543,203 @@ class PlanningAgent:
             if meal.type not in existing_types:
                 merged.append(meal)
         return merged[:3]
+
+    def _meal_type_label(self, meal_type: str) -> str:
+        mapping = {
+            "breakfast": "早餐",
+            "lunch": "午餐",
+            "dinner": "晚餐",
+            "snack": "小吃",
+        }
+        return mapping.get(str(meal_type).lower(), "餐饮")
+
+    def _estimate_transportation_cost(self, transportation: str, attractions: List[Attraction]) -> int:
+        transport_text = transportation.lower()
+        segments = max(1, len(attractions))
+        if any(token in transport_text for token in ("walk", "步行", "citywalk")):
+            return 0
+        if any(token in transport_text for token in ("metro", "subway", "bus", "transit", "地铁", "公交")):
+            return max(6, segments * 6)
+        if any(token in transport_text for token in ("taxi", "car", "drive", "打车", "驾车", "网约车")):
+            return max(30, segments * 25)
+        return max(10, segments * 8)
+
+    def _default_transportation_detail(
+        self,
+        request,
+        attractions: List[Attraction],
+        hotel: Optional[Hotel],
+    ) -> str:
+        stop_names = "、".join(item.name for item in attractions[:3]) or "当日景点"
+        hotel_name = hotel.name if hotel else request.accommodation
+        return (
+            f"当天以{request.transportation}为主，优先按照景点顺路原则串联{stop_names}，"
+            f"减少往返折返时间，结束后回到{hotel_name}附近休息。"
+        )
+
+    def _build_route_summary(self, attractions: List[Attraction], transportation: str) -> str:
+        if not attractions:
+            return ""
+        names = [item.name for item in attractions[:3]]
+        if len(names) == 1:
+            return f"当天主要前往{name}，交通方式以{transportation}为主。".replace("{name}", names[0])
+        return f"建议按{' → '.join(names)}的顺序游览，全程以{transportation}衔接，路线更顺畅。"
+
+    def _resolve_route_type(self, transportation: str) -> str:
+        transport_text = transportation.lower()
+        if any(token in transport_text for token in ("metro", "subway", "bus", "transit", "地铁", "公交")):
+            return "transit"
+        if any(token in transport_text for token in ("taxi", "car", "drive", "打车", "驾车", "网约车")):
+            return "driving"
+        return "walking"
+
+    def _enrich_trip_plan(self, trip_plan: TripPlan, payload: PlanningAgentInput) -> TripPlan:
+        amap_service = get_amap_service()
+        unsplash_service = get_unsplash_service()
+
+        enriched_days: List[DayPlan] = []
+        for day in trip_plan.days:
+            hotel = day.hotel
+            if hotel and hotel.location:
+                hotel = hotel.model_copy(
+                    update={
+                        "map_image_url": amap_service.build_static_map_url(
+                            [hotel.location],
+                            labels=["H"],
+                        )
+                    }
+                )
+
+            attractions: List[Attraction] = []
+            for index, attraction in enumerate(day.attractions, start=1):
+                image_url = attraction.image_url
+                if not image_url:
+                    image_url = unsplash_service.get_photo_url(f"{attraction.name} {trip_plan.city} 景点")
+                map_image_url = attraction.map_image_url or amap_service.build_static_map_url(
+                    [attraction.location],
+                    labels=[str(index)],
+                )
+                description = self._ensure_chinese_attraction_description(
+                    attraction.description,
+                    attraction.name,
+                    attraction.address,
+                    attraction.visit_duration,
+                )
+                attractions.append(
+                    attraction.model_copy(
+                        update={
+                            "image_url": image_url,
+                            "map_image_url": map_image_url,
+                            "description": description,
+                        }
+                    )
+                )
+
+            meals = [
+                meal.model_copy(update={"description": self._ensure_meal_reason(meal.description, meal.name, trip_plan.city)})
+                for meal in day.meals
+            ]
+
+            route_type = self._resolve_route_type(day.transportation)
+            route_summary = day.route_summary or self._build_route_summary(attractions, day.transportation)
+            route_details = self._build_route_details(amap_service, attractions, trip_plan.city, route_type)
+            if route_details:
+                route_summary = route_details
+
+            transportation_cost = day.transportation_cost or self._estimate_transportation_cost(
+                day.transportation, attractions
+            )
+            route_map_url = day.route_map_url or amap_service.build_static_map_url(
+                [item.location for item in attractions if item.location],
+                labels=[str(index + 1) for index in range(len(attractions))],
+            )
+
+            enriched_days.append(
+                day.model_copy(
+                    update={
+                        "hotel": hotel,
+                        "attractions": attractions,
+                        "meals": meals,
+                        "transportation_cost": transportation_cost,
+                        "transportation_detail": day.transportation_detail
+                        or self._default_transportation_detail(payload.request, attractions, hotel),
+                        "route_summary": route_summary,
+                        "route_map_url": route_map_url,
+                        "description": self._ensure_day_description(day.description, attractions, day.transportation),
+                    }
+                )
+            )
+
+        budget = self._build_budget(enriched_days)
+        return trip_plan.model_copy(update={"days": enriched_days, "budget": budget})
+
+    def _build_route_details(
+        self,
+        amap_service,
+        attractions: List[Attraction],
+        city: str,
+        route_type: str,
+    ) -> str:
+        if len(attractions) < 2:
+            return ""
+
+        segments: List[str] = []
+        for origin, destination in zip(attractions, attractions[1:]):
+            try:
+                route = amap_service.plan_route(
+                    origin_address=origin.address,
+                    destination_address=destination.address,
+                    origin_city=city,
+                    destination_city=city,
+                    route_type=route_type,
+                )
+                distance_km = round(float(route.get("distance", 0.0)) / 1000, 1)
+                duration_min = max(1, int(route.get("duration", 0)) // 60)
+                segments.append(
+                    f"{origin.name}到{destination.name}约{distance_km}公里，预计{duration_min}分钟"
+                )
+            except Exception as exc:  # pragma: no cover - external dependency
+                logger.debug("Route enrichment failed from %s to %s: %s", origin.name, destination.name, exc)
+
+        return "；".join(segments)
+
+    def _ensure_day_description(self, description: str, attractions: List[Attraction], transportation: str) -> str:
+        compact = (description or "").strip()
+        if compact and len(compact) >= 24:
+            return compact
+        attraction_names = "、".join(item.name for item in attractions[:3]) or "城市精华景点"
+        return (
+            f"当天行程围绕{attraction_names}展开，整体节奏以舒适游览为主，"
+            f"通过{transportation}串联主要停留点，兼顾观光体验、休息节奏与预算控制。"
+        )
+
+    def _ensure_chinese_attraction_description(
+        self,
+        description: str,
+        name: str,
+        address: str,
+        visit_duration: int,
+    ) -> str:
+        compact = (description or "").strip()
+        if compact and self._looks_like_chinese(compact) and len(compact) >= 40:
+            return compact
+        return (
+            f"{name}位于{address}，适合作为当天重点游览内容。这里通常能看到城市代表性景观、"
+            f"历史文化或休闲体验内容，适合安排约{visit_duration}分钟停留。建议优先关注最有代表性的区域，"
+            "并结合当天客流和天气情况安排拍照、步行和休息节奏。"
+        )
+
+    def _ensure_meal_reason(self, description: str | None, name: str, city: str) -> str:
+        compact = (description or "").strip()
+        if compact and self._looks_like_chinese(compact) and len(compact) >= 18:
+            return compact
+        return f"推荐选择{name}，既能体验{city}本地常见风味，也方便衔接当天景点安排，控制用餐时间和预算。"
+
+    def _looks_like_chinese(self, text: str) -> bool:
+        if not text:
+            return False
+        cjk = sum(1 for char in text if "\u4e00" <= char <= "\u9fff")
+        return cjk >= max(6, len(text) // 4)
 
     def _normalize_location(self, raw_location: Any, city: str) -> Location:
         if isinstance(raw_location, dict):

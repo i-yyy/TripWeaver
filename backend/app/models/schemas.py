@@ -104,6 +104,7 @@ class Attraction(BaseModel):
     photos: List[str] = Field(default_factory=list)
     poi_id: str = ""
     image_url: Optional[str] = None
+    map_image_url: Optional[str] = None
     ticket_price: int = 0
 
 
@@ -125,6 +126,7 @@ class Hotel(BaseModel):
     distance: str = ""
     type: str = ""
     estimated_cost: int = 0
+    map_image_url: Optional[str] = None
 
 
 class DayPlan(BaseModel):
@@ -132,10 +134,14 @@ class DayPlan(BaseModel):
     day_index: int
     description: str
     transportation: str
+    transportation_detail: str = ""
+    transportation_cost: int = 0
     accommodation: str
     hotel: Optional[Hotel] = None
     attractions: List[Attraction] = Field(default_factory=list)
     meals: List[Meal] = Field(default_factory=list)
+    route_summary: str = ""
+    route_map_url: Optional[str] = None
 
 
 class WeatherInfo(BaseModel):
