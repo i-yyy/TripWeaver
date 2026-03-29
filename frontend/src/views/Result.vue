@@ -1,206 +1,228 @@
-<template>
-  <div class="result-page">
-    <div class="header-row">
-      <a-space wrap>
-        <a-button size="large" @click="goBack">返回首页</a-button>
-        <a-button @click="goKBEval">RAG 评测</a-button>
-      </a-space>
-      <a-space wrap>
-        <a-button v-if="!editMode" @click="toggleEditMode">编辑行程</a-button>
-        <a-button v-if="editMode" type="primary" @click="saveChanges">保存修改</a-button>
-        <a-button v-if="editMode" @click="cancelEdit">取消</a-button>
-        <a-button v-if="tripPlan" @click="submitPlanFeedback('satisfied')">满意</a-button>
-        <a-button v-if="tripPlan" danger @click="submitPlanFeedback('unsatisfied')">不满意</a-button>
-      </a-space>
-    </div>
+﻿<template>
+  <div class="brand-page">
+    <div class="brand-shell">
+      <div class="glass-toolbar">
+        <div class="toolbar-group">
+          <a-button size="large" @click="goBack">返回旅行规划</a-button>
+          <a-button @click="goKBEval">RAG 评测</a-button>
+        </div>
+        <div class="toolbar-group">
+          <a-button v-if="!editMode" @click="toggleEditMode">编辑行程</a-button>
+          <a-button v-if="editMode" type="primary" @click="saveChanges">保存修改</a-button>
+          <a-button v-if="editMode" @click="cancelEdit">取消</a-button>
+          <a-button v-if="tripPlan" @click="submitPlanFeedback('satisfied')">满意</a-button>
+          <a-button v-if="tripPlan" danger @click="submitPlanFeedback('unsatisfied')">不满意</a-button>
+        </div>
+      </div>
 
-    <a-empty v-if="!tripPlan" description="没有找到行程数据">
-      <a-button type="primary" @click="goBack">返回首页</a-button>
-    </a-empty>
+      <section v-if="!tripPlan" class="glass-panel glass-panel--soft empty-state">
+        <div>
+          <h2>没有找到行程数据</h2>
+          <p>你可以先返回旅行规划页面重新生成一份行程。</p>
+          <a-button type="primary" @click="goBack">返回旅行规划</a-button>
+        </div>
+      </section>
 
-    <template v-else>
-      <a-card :bordered="false" class="overview-card">
-        <h2>{{ tripPlan.city }} 行程</h2>
-        <p>{{ tripPlan.start_date }} - {{ tripPlan.end_date }}</p>
-        <p>{{ tripPlan.overall_suggestions }}</p>
-      </a-card>
+      <template v-else>
+        <section class="glass-panel result-hero">
+          <span class="page-kicker">行程结果</span>
+          <h1 class="page-title result-title">{{ tripPlan.city }} · {{ tripPlan.start_date }} 至 {{ tripPlan.end_date }}</h1>
+          <p class="page-subtitle">{{ tripPlan.overall_suggestions }}</p>
+        </section>
 
-      <a-card :bordered="false" class="reason-card" title="推荐依据">
-        <a-empty v-if="!recommendationReasons.length" description="暂无结构化推荐依据" />
-        <a-list v-else :data-source="recommendationReasons">
-          <template #renderItem="{ item }">
-            <a-list-item>
-              <a-card style="width: 100%">
-                <template #title>
-                  <a-space wrap>
-                    <span>{{ item.title || sourceTypeLabel(item.source_type) }}</span>
-                    <a-tag color="blue">{{ sourceTypeLabel(item.source_type) }}</a-tag>
-                    <a-tag color="geekblue">评分 {{ formatScore(item.score) }}</a-tag>
-                  </a-space>
-                </template>
-                <p><strong>原因：</strong>{{ item.reason || '与当前需求匹配' }}</p>
-                <p v-if="item.snippet"><strong>命中片段：</strong>{{ item.snippet }}</p>
-                <p v-if="item.source_doc"><strong>来源文档：</strong>{{ formatSourceDoc(item.source_doc) }}</p>
-              </a-card>
-            </a-list-item>
-          </template>
-        </a-list>
-      </a-card>
+        <section class="glass-panel glass-panel--soft result-panel" v-if="recommendationReasons.length">
+          <div class="section-heading">
+            <h2>推荐依据</h2>
+            <p>这里展示了本次生成行程时参考到的知识库、画像和记忆信息。</p>
+          </div>
+          <a-list :data-source="recommendationReasons">
+            <template #renderItem="{ item }">
+              <a-list-item>
+                <div class="reason-card">
+                  <div class="reason-card__head">
+                    <strong>{{ item.title || sourceTypeLabel(item.source_type) }}</strong>
+                    <div class="toolbar-group">
+                      <a-tag color="blue">{{ sourceTypeLabel(item.source_type) }}</a-tag>
+                      <a-tag color="geekblue">评分 {{ formatScore(item.score) }}</a-tag>
+                    </div>
+                  </div>
+                  <p><strong>原因：</strong>{{ item.reason || '与当前需求匹配' }}</p>
+                  <p v-if="item.snippet"><strong>命中片段：</strong>{{ item.snippet }}</p>
+                  <p v-if="item.source_doc"><strong>来源文档：</strong>{{ formatSourceDoc(item.source_doc) }}</p>
+                </div>
+              </a-list-item>
+            </template>
+          </a-list>
+        </section>
 
-      <a-card v-if="tripPlan.budget" :bordered="false" class="budget-card" title="预算汇总">
-        <a-row :gutter="12">
-          <a-col :span="6">景点：¥{{ tripPlan.budget.total_attractions }}</a-col>
-          <a-col :span="6">酒店：¥{{ tripPlan.budget.total_hotels }}</a-col>
-          <a-col :span="6">餐饮：¥{{ tripPlan.budget.total_meals }}</a-col>
-          <a-col :span="6">交通：¥{{ tripPlan.budget.total_transportation }}</a-col>
-        </a-row>
-        <h3 style="margin-top: 12px">总计：¥{{ tripPlan.budget.total }}</h3>
-      </a-card>
-
-      <a-card :bordered="false" title="每日行程">
-        <a-collapse>
-          <a-collapse-panel
-            v-for="(day, dayIndex) in tripPlan.days"
-            :key="dayIndex"
-            :header="`第${day.day_index + 1}天 - ${day.date}`"
-          >
-            <div class="day-section">
-              <p><strong>当日概览：</strong>{{ day.description }}</p>
-              <p><strong>交通方式：</strong>{{ day.transportation }}</p>
-              <p v-if="day.transportation_detail"><strong>交通说明：</strong>{{ day.transportation_detail }}</p>
-              <p><strong>交通费用：</strong>{{ currency(day.transportation_cost) }}</p>
-              <p><strong>住宿安排：</strong>{{ day.accommodation }}</p>
+        <section v-if="tripPlan.budget" class="glass-panel glass-panel--soft result-panel">
+          <div class="section-heading">
+            <h2>预算汇总</h2>
+            <p>费用为参考估算，方便你快速判断本次行程的整体花费。</p>
+          </div>
+          <div class="budget-grid">
+            <div class="brand-stat">
+              <span>景点</span>
+              <strong>{{ currency(tripPlan.budget.total_attractions) }}</strong>
             </div>
+            <div class="brand-stat">
+              <span>酒店</span>
+              <strong>{{ currency(tripPlan.budget.total_hotels) }}</strong>
+            </div>
+            <div class="brand-stat">
+              <span>餐饮</span>
+              <strong>{{ currency(tripPlan.budget.total_meals) }}</strong>
+            </div>
+            <div class="brand-stat">
+              <span>交通</span>
+              <strong>{{ currency(tripPlan.budget.total_transportation) }}</strong>
+            </div>
+            <div class="brand-stat budget-total">
+              <span>总计</span>
+              <strong>{{ currency(tripPlan.budget.total) }}</strong>
+            </div>
+          </div>
+        </section>
 
-            <a-card v-if="day.hotel" size="small" class="sub-card" title="住宿推荐">
-              <div class="entity-grid">
-                <img
-                  v-if="day.hotel.map_image_url"
-                  class="map-image"
-                  :src="day.hotel.map_image_url"
-                  :alt="`${day.hotel.name}地图`"
-                />
-                <div>
-                  <p><strong>酒店：</strong>{{ day.hotel.name }}</p>
-                  <p><strong>地址：</strong>{{ day.hotel.address || '暂无' }}</p>
-                  <p><strong>类型：</strong>{{ day.hotel.type || '暂无' }}</p>
-                  <p><strong>价格区间：</strong>{{ day.hotel.price_range || '暂无' }}</p>
-                  <p><strong>参考评分：</strong>{{ day.hotel.rating || '暂无' }}</p>
-                  <p><strong>参考价格：</strong>{{ currency(day.hotel.estimated_cost) }}/晚</p>
-                </div>
-              </div>
-            </a-card>
+        <section class="glass-panel glass-panel--soft result-panel">
+          <div class="section-heading">
+            <h2>每日行程</h2>
+            <p>你可以直接浏览安排，也可以进入编辑模式调换景点顺序、删除不想去的内容。</p>
+          </div>
 
-            <a-card
-              v-if="day.route_summary || day.route_map_url"
-              size="small"
-              class="sub-card"
-              title="路线与地图"
+          <a-collapse ghost>
+            <a-collapse-panel
+              v-for="(day, dayIndex) in tripPlan.days"
+              :key="dayIndex"
+              :header="`第 ${day.day_index + 1} 天 · ${day.date}`"
             >
-              <div class="entity-grid">
-                <img
-                  v-if="day.route_map_url"
-                  class="route-image"
-                  :src="day.route_map_url"
-                  :alt="`第${day.day_index + 1}天路线图`"
-                />
-                <div>
-                  <p><strong>路线摘要：</strong>{{ day.route_summary || '暂无路线摘要' }}</p>
+              <div class="day-summary">
+                <p><strong>当日概览：</strong>{{ day.description }}</p>
+                <p><strong>交通方式：</strong>{{ day.transportation }}</p>
+                <p v-if="day.transportation_detail"><strong>交通说明：</strong>{{ day.transportation_detail }}</p>
+                <p><strong>交通费用：</strong>{{ currency(day.transportation_cost) }}</p>
+                <p><strong>住宿安排：</strong>{{ day.accommodation }}</p>
+              </div>
+
+              <div v-if="day.hotel" class="entity-card">
+                <div class="entity-card__body">
+                  <img
+                    v-if="day.hotel.map_image_url"
+                    class="entity-image entity-image--map"
+                    :src="day.hotel.map_image_url"
+                    :alt="`${day.hotel.name}地图`"
+                  />
+                  <div>
+                    <h3>住宿推荐 · {{ day.hotel.name }}</h3>
+                    <p><strong>地址：</strong>{{ day.hotel.address || '暂无' }}</p>
+                    <p><strong>类型：</strong>{{ day.hotel.type || '暂无' }}</p>
+                    <p><strong>价格区间：</strong>{{ day.hotel.price_range || '暂无' }}</p>
+                    <p><strong>参考评分：</strong>{{ day.hotel.rating || '暂无' }}</p>
+                    <p><strong>参考价格：</strong>{{ currency(day.hotel.estimated_cost) }}/晚</p>
+                  </div>
                 </div>
               </div>
-            </a-card>
 
-            <a-divider orientation="left">景点</a-divider>
-            <a-list :data-source="day.attractions">
-              <template #renderItem="{ item, index }">
-                <a-list-item>
-                  <a-card style="width: 100%">
-                    <template #title>{{ index + 1 }}. {{ item.name }}</template>
-                    <template #extra v-if="editMode">
-                      <a-space>
-                        <a-button size="small" @click="moveAttraction(dayIndex, index, 'up')" :disabled="index === 0">上移</a-button>
-                        <a-button
-                          size="small"
-                          @click="moveAttraction(dayIndex, index, 'down')"
-                          :disabled="index === day.attractions.length - 1"
-                        >
-                          下移
-                        </a-button>
-                        <a-button size="small" danger @click="deleteAttraction(dayIndex, index)">删除</a-button>
-                      </a-space>
-                    </template>
+              <div v-if="day.route_summary || day.route_map_url" class="entity-card">
+                <div class="entity-card__body">
+                  <img
+                    v-if="day.route_map_url"
+                    class="entity-image entity-image--map"
+                    :src="day.route_map_url"
+                    :alt="`第 ${day.day_index + 1} 天路线图`"
+                  />
+                  <div>
+                    <h3>路线与地图</h3>
+                    <p><strong>路线摘要：</strong>{{ day.route_summary || '暂无路线摘要' }}</p>
+                  </div>
+                </div>
+              </div>
 
-                    <div v-if="editMode">
-                      <a-input v-model:value="item.address" placeholder="地址" style="margin-bottom: 8px" />
-                      <a-input-number
-                        v-model:value="item.visit_duration"
-                        :min="10"
-                        :max="480"
-                        style="width: 100%; margin-bottom: 8px"
-                      />
-                      <a-input-number
-                        v-model:value="item.ticket_price"
-                        :min="0"
-                        style="width: 100%; margin-bottom: 8px"
-                      />
-                      <a-textarea v-model:value="item.description" :rows="5" />
-                    </div>
-                    <div v-else>
-                      <div class="entity-grid">
-                        <img
-                          v-if="item.image_url"
-                          class="entity-image"
-                          :src="item.image_url"
-                          :alt="item.name"
-                        />
-                        <img
-                          v-if="item.map_image_url"
-                          class="map-image"
-                          :src="item.map_image_url"
-                          :alt="`${item.name}地图`"
-                        />
+              <div class="section-split">
+                <div class="section-heading compact-heading">
+                  <h3>景点安排</h3>
+                </div>
+                <a-list :data-source="day.attractions">
+                  <template #renderItem="{ item, index }">
+                    <a-list-item>
+                      <div class="entity-card entity-card--full">
+                        <div class="entity-card__header">
+                          <strong>{{ index + 1 }}. {{ item.name }}</strong>
+                          <a-space v-if="editMode">
+                            <a-button size="small" @click="moveAttraction(dayIndex, index, 'up')" :disabled="index === 0">上移</a-button>
+                            <a-button size="small" @click="moveAttraction(dayIndex, index, 'down')" :disabled="index === day.attractions.length - 1">下移</a-button>
+                            <a-button size="small" danger @click="deleteAttraction(dayIndex, index)">删除</a-button>
+                          </a-space>
+                        </div>
+
+                        <div v-if="editMode" class="brand-form-grid">
+                          <a-input v-model:value="item.address" placeholder="地址" />
+                          <a-input-number v-model:value="item.visit_duration" :min="10" :max="480" />
+                          <a-input-number v-model:value="item.ticket_price" :min="0" />
+                          <a-textarea v-model:value="item.description" :rows="4" />
+                        </div>
+
+                        <div v-else>
+                          <div class="entity-media-grid">
+                            <img v-if="item.image_url" class="entity-image" :src="item.image_url" :alt="item.name" />
+                            <img
+                              v-if="item.map_image_url"
+                              class="entity-image entity-image--map"
+                              :src="item.map_image_url"
+                              :alt="`${item.name}地图`"
+                            />
+                          </div>
+                          <p><strong>地址：</strong>{{ item.address || '暂无' }}</p>
+                          <p><strong>建议停留：</strong>{{ item.visit_duration }} 分钟</p>
+                          <p><strong>门票参考：</strong>{{ currency(item.ticket_price) }}</p>
+                          <p><strong>景点描述：</strong>{{ item.description || '暂无说明' }}</p>
+                          <div class="toolbar-group">
+                            <a-button size="small" @click="submitAttractionFeedback(item.name, 'like')">喜欢</a-button>
+                            <a-button size="small" danger @click="submitAttractionFeedback(item.name, 'dislike')">不喜欢</a-button>
+                          </div>
+                        </div>
                       </div>
-                      <p><strong>地址：</strong>{{ item.address }}</p>
-                      <p><strong>建议停留：</strong>{{ item.visit_duration }} 分钟</p>
-                      <p><strong>门票参考：</strong>{{ currency(item.ticket_price) }}</p>
-                      <p><strong>景点描述：</strong>{{ item.description }}</p>
-                      <a-space>
-                        <a-button size="small" @click="submitAttractionFeedback(item.name, 'like')">喜欢</a-button>
-                        <a-button size="small" danger @click="submitAttractionFeedback(item.name, 'dislike')">不喜欢</a-button>
-                      </a-space>
-                    </div>
-                  </a-card>
-                </a-list-item>
-              </template>
-            </a-list>
+                    </a-list-item>
+                  </template>
+                </a-list>
+              </div>
 
-            <a-divider orientation="left">餐饮</a-divider>
-            <a-list :data-source="day.meals">
-              <template #renderItem="{ item }">
-                <a-list-item>
-                  <a-card style="width: 100%">
-                    <template #title>{{ mealLabel(item.type) }}：{{ item.name }}</template>
-                    <p><strong>人均预算：</strong>{{ currency(item.estimated_cost) }}</p>
-                    <p><strong>推荐理由：</strong>{{ item.description || '暂无说明' }}</p>
-                  </a-card>
-                </a-list-item>
-              </template>
-            </a-list>
-          </a-collapse-panel>
-        </a-collapse>
-      </a-card>
+              <div class="section-split">
+                <div class="section-heading compact-heading">
+                  <h3>餐饮安排</h3>
+                </div>
+                <a-list :data-source="day.meals">
+                  <template #renderItem="{ item }">
+                    <a-list-item>
+                      <div class="entity-card entity-card--full meal-card">
+                        <strong>{{ mealLabel(item.type) }} · {{ item.name }}</strong>
+                        <p><strong>人均预算：</strong>{{ currency(item.estimated_cost) }}</p>
+                        <p><strong>推荐理由：</strong>{{ item.description || '暂无说明' }}</p>
+                      </div>
+                    </a-list-item>
+                  </template>
+                </a-list>
+              </div>
+            </a-collapse-panel>
+          </a-collapse>
+        </section>
 
-      <a-card v-if="tripPlan.weather_info.length" :bordered="false" title="天气">
-        <a-list :data-source="tripPlan.weather_info">
-          <template #renderItem="{ item }">
-            <a-list-item>
-              {{ item.date }} - 白天 {{ item.day_weather }} {{ item.day_temp }}°C / 夜间 {{ item.night_weather }}
-              {{ item.night_temp }}°C
-            </a-list-item>
-          </template>
-        </a-list>
-      </a-card>
-    </template>
+        <section v-if="tripPlan.weather_info.length" class="glass-panel glass-panel--soft result-panel">
+          <div class="section-heading">
+            <h2>天气信息</h2>
+            <p>出发前可以顺手再确认一次，方便调整穿搭和雨天备选方案。</p>
+          </div>
+          <div class="weather-grid">
+            <div v-for="item in tripPlan.weather_info" :key="item.date" class="brand-stat">
+              <span>{{ item.date }}</span>
+              <strong>{{ item.day_weather }}</strong>
+              <p>白天 {{ item.day_temp }}°C / 夜间 {{ item.night_temp }}°C</p>
+              <p>{{ item.night_weather }} · {{ item.wind_direction }}风 {{ item.wind_power }}</p>
+            </div>
+          </div>
+        </section>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -208,6 +230,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
+
 import { submitFeedback } from '@/services/api'
 import type { FeedbackPayload, RecommendationReason, TripPlan } from '@/types'
 import { useAuthState } from '@/utils/auth'
@@ -219,6 +242,7 @@ const originalPlan = ref<TripPlan | null>(null)
 const editMode = ref(false)
 const currentUserId = ref(authState.user?.id || sessionStorage.getItem('tripPlannerUserId') || '')
 const currentSessionId = ref(sessionStorage.getItem('tripPlannerSessionId') || '')
+
 const recommendationReasons = computed<RecommendationReason[]>(() => tripPlan.value?.recommendation_reasons || [])
 
 onMounted(() => {
@@ -228,30 +252,27 @@ onMounted(() => {
   }
 })
 
-const goBack = () => {
-  router.push('/planner')
-}
+const clonePlan = <T>(value: T): T => JSON.parse(JSON.stringify(value))
 
-const goKBEval = () => {
-  router.push('/kb-eval')
-}
+const goBack = () => router.push('/planner')
+const goKBEval = () => router.push('/kb-eval')
 
 const toggleEditMode = () => {
   if (!tripPlan.value) return
   editMode.value = true
-  originalPlan.value = JSON.parse(JSON.stringify(tripPlan.value))
+  originalPlan.value = clonePlan(tripPlan.value)
 }
 
 const saveChanges = () => {
-  editMode.value = false
   if (!tripPlan.value) return
+  editMode.value = false
   sessionStorage.setItem('tripPlan', JSON.stringify(tripPlan.value))
   message.success('已保存修改')
 }
 
 const cancelEdit = () => {
   if (!originalPlan.value) return
-  tripPlan.value = JSON.parse(JSON.stringify(originalPlan.value))
+  tripPlan.value = clonePlan(originalPlan.value)
   editMode.value = false
   message.info('已取消编辑')
 }
@@ -293,6 +314,7 @@ const submitAttractionFeedback = async (attractionName: string, feedbackType: 'l
     feedback_type: feedbackType,
     metadata: { city: tripPlan.value.city },
   }
+
   try {
     await submitFeedback(payload)
     message.success(feedbackType === 'like' ? '已记录喜欢' : '已记录不喜欢')
@@ -315,6 +337,7 @@ const submitPlanFeedback = async (feedbackType: 'satisfied' | 'unsatisfied') => 
       end_date: tripPlan.value.end_date,
     },
   }
+
   try {
     await submitFeedback(payload)
     message.success(feedbackType === 'satisfied' ? '已记录满意反馈' : '已记录不满意反馈')
@@ -357,64 +380,118 @@ const currency = (value?: number) => {
 </script>
 
 <style scoped>
-.result-page {
-  min-height: 100vh;
-  background: linear-gradient(160deg, #f4f7ff 0%, #e8eef8 100%);
-  padding: 24px;
+.result-hero,
+.result-panel {
+  padding: 28px;
+  margin-bottom: 18px;
 }
 
-.header-row {
+.result-title {
+  font-size: clamp(36px, 4vw, 54px);
+}
+
+.reason-card,
+.entity-card {
+  width: 100%;
+  padding: 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.reason-card__head,
+.entity-card__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
-.overview-card,
-.reason-card,
-.budget-card {
-  margin-bottom: 16px;
+.reason-card p,
+.entity-card p,
+.day-summary p,
+.brand-stat p {
+  margin: 0 0 8px;
+  color: var(--brand-muted);
+  line-height: 1.75;
 }
 
-.day-section {
-  margin-bottom: 12px;
+.budget-grid,
+.weather-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
 }
 
-.sub-card {
-  margin-bottom: 16px;
+.budget-total {
+  background: linear-gradient(135deg, rgba(255,255,255,0.72), rgba(231,240,255,0.86));
 }
 
-.entity-grid {
+.day-summary {
+  margin-bottom: 18px;
+}
+
+.section-split {
+  margin-top: 18px;
+}
+
+.compact-heading {
+  margin-bottom: 10px;
+}
+
+.entity-card {
+  margin-bottom: 18px;
+}
+
+.entity-card__body {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.entity-card--full {
+  margin-bottom: 0;
+}
+
+.entity-media-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+  gap: 14px;
   margin-bottom: 12px;
-}
-
-.entity-image,
-.map-image,
-.route-image {
-  width: 100%;
-  border-radius: 12px;
-  object-fit: cover;
-  background: #eef2f8;
 }
 
 .entity-image {
+  width: 100%;
   min-height: 180px;
-  max-height: 240px;
+  border-radius: 16px;
+  object-fit: cover;
+  background: rgba(225, 235, 247, 0.8);
 }
 
-.map-image,
-.route-image {
-  min-height: 160px;
+.entity-image--map {
+  min-height: 200px;
 }
 
-@media (max-width: 900px) {
-  .header-row {
+.meal-card strong {
+  display: block;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 960px) {
+  .result-hero,
+  .result-panel {
+    padding: 22px;
+  }
+
+  .entity-card__body {
+    grid-template-columns: 1fr;
+  }
+
+  .reason-card__head,
+  .entity-card__header {
     flex-direction: column;
-    align-items: flex-start;
   }
 }
 </style>

@@ -1,20 +1,22 @@
-<template>
-  <div class="planner-page">
-    <div class="planner-shell">
-      <a-card class="planner-card" :bordered="false">
-        <div class="planner-head">
-          <div>
-            <p class="planner-kicker">旅行规划主页面</p>
-            <h1>把灵感整理成一份真的能出发的行程</h1>
-            <p class="planner-tip">我们会结合偏好、预算、同行人和已有画像，生成一份更贴近你的旅行建议。</p>
-          </div>
-          <a-space wrap>
-            <a-button @click="goTracks">我的旅行轨迹</a-button>
-            <a-button @click="goKBEval">RAG 评测</a-button>
-          </a-space>
+﻿<template>
+  <div class="brand-page planner-page">
+    <div class="brand-shell split-layout">
+      <section class="glass-panel planner-main-panel">
+        <div class="section-heading planner-heading">
+          <span class="page-kicker">旅行规划主页面</span>
+          <h1 class="page-title planner-title">把灵感整理成一份真的能出发的行程</h1>
+          <p class="page-subtitle">
+            目的地、时间、预算和偏好交给我们来一起梳理。系统会结合你的画像、历史反馈和当前输入，生成更贴近你的旅行方案。
+          </p>
         </div>
 
-        <a-form layout="vertical" @submit.prevent="handleSubmit">
+        <div class="toolbar-group planner-top-actions">
+          <span class="brand-chip">已登录账号：{{ authState.user?.nickname || '旅行者' }}</span>
+          <a-button @click="goTracks">我的旅行轨迹</a-button>
+          <a-button @click="goKBEval">RAG 评测</a-button>
+        </div>
+
+        <a-form class="brand-form-grid" layout="vertical" @submit.prevent="handleSubmit">
           <a-row :gutter="16">
             <a-col :xs="24" :md="8">
               <a-form-item label="目的地城市" required>
@@ -36,34 +38,27 @@
           <a-row :gutter="16">
             <a-col :xs="24" :md="6">
               <a-form-item label="旅行天数">
-                <a-input-number :value="formData.travel_days" :min="1" :max="30" disabled style="width: 100%" />
+                <a-input-number :value="formData.travel_days" :min="1" :max="30" disabled />
               </a-form-item>
             </a-col>
             <a-col :xs="24" :md="6">
               <a-form-item label="交通方式">
                 <a-select v-model:value="formData.transportation">
-                  <a-select-option value="Public Transit">公共交通</a-select-option>
-                  <a-select-option value="Drive">自驾</a-select-option>
-                  <a-select-option value="Walk">步行</a-select-option>
+                  <a-select-option v-for="item in transportOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
                 </a-select>
               </a-form-item>
             </a-col>
             <a-col :xs="24" :md="6">
               <a-form-item label="住宿偏好">
                 <a-select v-model:value="formData.accommodation">
-                  <a-select-option value="Budget Hotel">经济酒店</a-select-option>
-                  <a-select-option value="Comfort Hotel">舒适酒店</a-select-option>
-                  <a-select-option value="Luxury Hotel">高端酒店</a-select-option>
-                  <a-select-option value="Homestay">民宿</a-select-option>
+                  <a-select-option v-for="item in accommodationOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
                 </a-select>
               </a-form-item>
             </a-col>
             <a-col :xs="24" :md="6">
               <a-form-item label="预算等级">
-                <a-select v-model:value="formData.budget_level" allow-clear>
-                  <a-select-option value="low">低预算</a-select-option>
-                  <a-select-option value="medium">中预算</a-select-option>
-                  <a-select-option value="high">高预算</a-select-option>
+                <a-select v-model:value="formData.budget_level" allow-clear placeholder="请选择预算等级">
+                  <a-select-option v-for="item in budgetOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
                 </a-select>
               </a-form-item>
             </a-col>
@@ -71,28 +66,44 @@
 
           <a-form-item label="兴趣偏好">
             <a-checkbox-group v-model:value="formData.preferences">
-              <a-checkbox value="history">历史文化</a-checkbox>
-              <a-checkbox value="nature">自然风光</a-checkbox>
-              <a-checkbox value="food">美食</a-checkbox>
-              <a-checkbox value="shopping">购物</a-checkbox>
-              <a-checkbox value="museum">博物馆</a-checkbox>
+              <a-checkbox v-for="item in preferenceOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
+            </a-checkbox-group>
+          </a-form-item>
+
+          <a-form-item label="旅行风格">
+            <a-checkbox-group v-model:value="formData.travel_style">
+              <a-checkbox v-for="item in travelStyleOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
             </a-checkbox-group>
           </a-form-item>
 
           <a-form-item label="同行人群">
             <a-checkbox-group v-model:value="formData.companions">
-              <a-checkbox value="solo">独行</a-checkbox>
-              <a-checkbox value="couple">情侣</a-checkbox>
-              <a-checkbox value="family">家庭</a-checkbox>
-              <a-checkbox value="friends">朋友</a-checkbox>
+              <a-checkbox v-for="item in companionOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
             </a-checkbox-group>
           </a-form-item>
+
+          <a-row :gutter="16">
+            <a-col :xs="24" :md="12">
+              <a-form-item label="饮食限制">
+                <a-checkbox-group v-model:value="formData.dietary_restrictions">
+                  <a-checkbox v-for="item in dietaryOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
+                </a-checkbox-group>
+              </a-form-item>
+            </a-col>
+            <a-col :xs="24" :md="12">
+              <a-form-item label="行动需求">
+                <a-checkbox-group v-model:value="formData.mobility_needs">
+                  <a-checkbox v-for="item in mobilityOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
+                </a-checkbox-group>
+              </a-form-item>
+            </a-col>
+          </a-row>
 
           <a-form-item label="补充要求">
             <a-textarea
               v-model:value="formData.free_text_input"
               :rows="4"
-              placeholder="例如：希望雨天也有备选方案；不要安排太赶；想多一点 citywalk。"
+              placeholder="例如：希望雨天也有备选方案，不要安排得太赶，想多一点 citywalk。"
             />
           </a-form-item>
 
@@ -102,7 +113,40 @@
             </a-button>
           </a-form-item>
         </a-form>
-      </a-card>
+      </section>
+
+      <aside class="aside-stack">
+        <section class="glass-panel glass-panel--soft planner-side-panel">
+          <div class="section-heading">
+            <h3>这次会帮你关注什么</h3>
+            <p>你填写的信息越具体，结果就越容易贴近你真正想要的旅行节奏。</p>
+          </div>
+          <div class="info-list">
+            <div class="info-item">
+              <strong>目的地与日期</strong>
+              <span>决定每天能安排多少内容，也会影响天气与路线建议。</span>
+            </div>
+            <div class="info-item">
+              <strong>预算与住宿</strong>
+              <span>会一起影响酒店候选、餐饮估算和整体安排密度。</span>
+            </div>
+            <div class="info-item">
+              <strong>偏好与同行人群</strong>
+              <span>系统会更偏向你喜欢的景点类型，也会顾及出行氛围。</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="glass-panel glass-panel--soft planner-side-panel">
+          <div class="section-heading">
+            <h3>小提示</h3>
+            <p>如果你不确定怎么填，可以先从城市、日期和兴趣偏好开始，剩下的留给系统帮你补全。</p>
+          </div>
+          <div class="brand-note">
+            如果你希望轻松一点的行程，可以在补充要求里写上“不要太赶”。如果你担心天气，也可以提前说明“下雨要有室内备选”。
+          </div>
+        </section>
+      </aside>
     </div>
   </div>
 </template>
@@ -121,6 +165,59 @@ const router = useRouter()
 const authState = useAuthState()
 const loading = ref(false)
 const loadingStatus = ref('正在生成行程...')
+
+const transportOptions = [
+  { value: 'Public Transit', label: '公共交通' },
+  { value: 'Drive', label: '自驾' },
+  { value: 'Walk', label: '步行' },
+]
+
+const accommodationOptions = [
+  { value: 'Budget Hotel', label: '经济酒店' },
+  { value: 'Comfort Hotel', label: '舒适酒店' },
+  { value: 'Luxury Hotel', label: '高端酒店' },
+  { value: 'Homestay', label: '民宿' },
+]
+
+const budgetOptions = [
+  { value: 'low', label: '低预算' },
+  { value: 'medium', label: '中预算' },
+  { value: 'high', label: '高预算' },
+]
+
+const preferenceOptions = [
+  { value: 'history', label: '历史文化' },
+  { value: 'nature', label: '自然风光' },
+  { value: 'food', label: '美食' },
+  { value: 'shopping', label: '购物' },
+  { value: 'museum', label: '博物馆' },
+]
+
+const travelStyleOptions = [
+  { value: 'slow', label: '慢节奏' },
+  { value: 'citywalk', label: '城市漫游' },
+  { value: 'checkin', label: '经典打卡' },
+  { value: 'local', label: '本地体验' },
+]
+
+const companionOptions = [
+  { value: 'solo', label: '独行' },
+  { value: 'couple', label: '情侣' },
+  { value: 'family', label: '家庭' },
+  { value: 'friends', label: '朋友' },
+]
+
+const dietaryOptions = [
+  { value: 'vegetarian', label: '素食' },
+  { value: 'no_spicy', label: '少辣或不辣' },
+  { value: 'halal', label: '清真' },
+]
+
+const mobilityOptions = [
+  { value: 'less_walking', label: '尽量少走路' },
+  { value: 'wheelchair', label: '无障碍优先' },
+  { value: 'rest_friendly', label: '安排休息点' },
+]
 
 const createSessionId = () => crypto.randomUUID()
 
@@ -223,43 +320,27 @@ const goTracks = () => router.push('/tracks')
 </script>
 
 <style scoped>
-.planner-page {
-  padding: 28px 18px 40px;
+.planner-main-panel,
+.planner-side-panel {
+  padding: 28px;
 }
 
-.planner-shell {
-  max-width: 1180px;
-  margin: 0 auto;
+.planner-heading {
+  margin-bottom: 22px;
 }
 
-.planner-card {
-  border-radius: 28px;
-  box-shadow: 0 24px 50px rgba(31, 50, 81, 0.14);
+.planner-title {
+  font-size: clamp(34px, 4.2vw, 54px);
 }
 
-.planner-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 20px;
-  margin-bottom: 24px;
+.planner-top-actions {
+  margin-bottom: 22px;
 }
 
-.planner-kicker {
-  margin-bottom: 10px;
-  color: #cb7a32;
-  letter-spacing: 2px;
-}
-
-.planner-tip {
-  max-width: 680px;
-  color: #617086;
-  line-height: 1.8;
-}
-
-@media (max-width: 900px) {
-  .planner-head {
-    flex-direction: column;
+@media (max-width: 960px) {
+  .planner-main-panel,
+  .planner-side-panel {
+    padding: 22px;
   }
 }
 </style>

@@ -1,33 +1,59 @@
-<template>
-  <div class="auth-page">
-    <a-card class="auth-card" :bordered="false">
-      <p class="auth-kicker">新的旅程，从这里开始</p>
-      <h1>注册账号</h1>
-      <p class="auth-tip">创建你的专属旅行身份，把偏好、反馈和轨迹都沉淀下来。</p>
+﻿<template>
+  <div class="brand-page auth-page">
+    <div class="brand-shell auth-grid">
+      <section class="glass-panel auth-copy-panel">
+        <span class="page-kicker">新的故事，从这里开始</span>
+        <h1 class="page-title auth-title">注册一个账号，让旅行偏好、轨迹和反馈都被好好记住</h1>
+        <p class="page-subtitle">
+          以后每次规划都不再从零开始。系统会慢慢懂你的旅行节奏，也会把每一次搜索留下来的线索整理成更贴近你的建议。
+        </p>
 
-      <a-form layout="vertical" @submit.prevent="handleRegister">
-        <a-form-item label="昵称">
-          <a-input v-model:value="form.nickname" placeholder="想让大家怎么称呼你" />
-        </a-form-item>
-        <a-form-item label="邮箱">
-          <a-input v-model:value="form.email" placeholder="you@example.com" />
-        </a-form-item>
-        <a-form-item label="密码">
-          <a-input-password v-model:value="form.password" placeholder="至少 6 位密码" />
-        </a-form-item>
-        <a-form-item label="确认密码">
-          <a-input-password v-model:value="confirmPassword" placeholder="再输一次，确认没手滑" />
-        </a-form-item>
-        <a-form-item>
-          <a-button type="primary" block size="large" :loading="loading" @click="handleRegister">注册</a-button>
-        </a-form-item>
-      </a-form>
+        <div class="info-list auth-highlights">
+          <div class="info-item">
+            <strong>保存旅行轨迹</strong>
+            <span>搜索过的城市会自动收进你的个人地图里。</span>
+          </div>
+          <div class="info-item">
+            <strong>积累偏好画像</strong>
+            <span>你喜欢的景点类型、住宿倾向和节奏都会持续沉淀。</span>
+          </div>
+          <div class="info-item">
+            <strong>统一账号管理</strong>
+            <span>登录后就能在个人设置里维护昵称、邮箱和密码。</span>
+          </div>
+        </div>
+      </section>
 
-      <div class="switch-row">
-        已经有账号？
-        <a-button type="link" @click="router.push('/login')">去登录</a-button>
-      </div>
-    </a-card>
+      <section class="glass-panel glass-panel--soft auth-form-panel">
+        <div class="section-heading">
+          <h2>注册账号</h2>
+          <p>只需要三步，就能拥有自己的智能旅行空间。</p>
+        </div>
+
+        <a-form layout="vertical" @submit.prevent="handleRegister">
+          <a-form-item label="昵称">
+            <a-input v-model:value="form.nickname" placeholder="想让大家怎么称呼你" />
+          </a-form-item>
+          <a-form-item label="邮箱">
+            <a-input v-model:value="form.email" placeholder="请输入常用邮箱" />
+          </a-form-item>
+          <a-form-item label="密码">
+            <a-input-password v-model:value="form.password" placeholder="请输入至少 6 位密码" />
+          </a-form-item>
+          <a-form-item label="确认密码">
+            <a-input-password v-model:value="confirmPassword" placeholder="请再输入一次密码" />
+          </a-form-item>
+          <a-form-item>
+            <a-button type="primary" block size="large" :loading="loading" @click="handleRegister">注册</a-button>
+          </a-form-item>
+        </a-form>
+
+        <div class="auth-switch-row">
+          <span>已经有账号了？</span>
+          <a-button type="link" @click="router.push('/login')">去登录</a-button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -79,36 +105,52 @@ const handleRegister = async () => {
 
 <style scoped>
 .auth-page {
-  min-height: calc(100vh - 64px);
+  display: flex;
+  align-items: center;
+}
+
+.auth-grid {
   display: grid;
-  place-items: center;
-  padding: 32px 16px;
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+  gap: 22px;
+  align-items: stretch;
 }
 
-.auth-card {
-  width: min(100%, 500px);
-  border-radius: 26px;
-  box-shadow: 0 22px 48px rgba(26, 48, 82, 0.16);
+.auth-copy-panel,
+.auth-form-panel {
+  padding: 34px;
 }
 
-.auth-kicker {
-  margin-bottom: 8px;
-  color: #2d78b8;
-  letter-spacing: 2px;
+.auth-title {
+  max-width: 620px;
+  font-size: clamp(38px, 4.6vw, 62px);
 }
 
-h1 {
-  margin-bottom: 8px;
+.auth-highlights {
+  margin-top: 28px;
 }
 
-.auth-tip {
-  margin-bottom: 24px;
-  color: #607086;
+.auth-form-panel {
+  align-self: center;
 }
 
-.switch-row {
+.auth-switch-row {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--brand-muted);
+}
+
+@media (max-width: 960px) {
+  .auth-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-copy-panel,
+  .auth-form-panel {
+    padding: 24px;
+  }
 }
 </style>

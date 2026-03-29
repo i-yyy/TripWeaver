@@ -13,7 +13,7 @@ import { isAuthenticated } from '@/utils/auth'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'Landing', component: Landing, meta: { publicOnly: true } },
+    { path: '/', name: 'Landing', component: Landing },
     { path: '/login', name: 'Login', component: Login, meta: { publicOnly: true } },
     { path: '/register', name: 'Register', component: Register, meta: { publicOnly: true } },
     { path: '/planner', name: 'Planner', component: Home, meta: { requiresAuth: true } },
@@ -29,8 +29,8 @@ router.beforeEach((to) => {
   if (to.meta.requiresAuth && !authed) {
     return '/login'
   }
-  if (to.meta.publicOnly && authed) {
-    return '/planner'
+  if (to.meta.publicOnly && authed && to.path !== '/') {
+    return '/'
   }
   return true
 })

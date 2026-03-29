@@ -1,20 +1,22 @@
-<template>
+﻿<template>
   <div id="app-shell">
     <a-layout class="app-layout">
-      <a-layout-header class="app-header">
-        <div class="brand" @click="goBrandHome">智能旅行助手</div>
-        <a-space wrap>
-          <template v-if="authenticated">
-            <a-button type="text" class="nav-btn" @click="goPlanner">旅行规划</a-button>
-            <a-button type="text" class="nav-btn" @click="goTracks">我的旅行轨迹</a-button>
-            <a-button type="text" class="nav-btn" @click="goProfile">个人设置</a-button>
-            <a-button @click="logout">退出登录</a-button>
-          </template>
-          <template v-else>
-            <a-button type="text" class="nav-btn" @click="goLogin">登录</a-button>
-            <a-button type="primary" @click="goRegister">注册</a-button>
-          </template>
-        </a-space>
+      <a-layout-header v-if="showAppHeader" class="app-header">
+        <div class="app-header__inner brand-shell">
+          <button class="brand-button" type="button" @click="goBrandHome">智能旅行助手</button>
+          <div class="app-nav">
+            <template v-if="authenticated">
+              <a-button type="text" class="nav-btn" @click="goPlanner">旅行规划</a-button>
+              <a-button type="text" class="nav-btn" @click="goTracks">旅行轨迹</a-button>
+              <a-button type="text" class="nav-btn" @click="goProfile">个人设置</a-button>
+              <a-button @click="logout">退出登录</a-button>
+            </template>
+            <template v-else>
+              <a-button type="text" class="nav-btn" @click="goLogin">登录</a-button>
+              <a-button type="primary" @click="goRegister">注册</a-button>
+            </template>
+          </div>
+        </div>
       </a-layout-header>
       <a-layout-content class="app-content">
         <router-view />
@@ -32,83 +34,94 @@ import { clearAuthSession, useAuthState } from '@/utils/auth'
 const router = useRouter()
 const route = useRoute()
 const authState = useAuthState()
-const authenticated = computed(() => Boolean(authState.token && authState.user))
 
-const goBrandHome = () => router.push(authenticated.value ? '/planner' : '/')
+const authenticated = computed(() => Boolean(authState.token && authState.user))
+const showAppHeader = computed(() => route.path !== '/')
+
+const goBrandHome = () => router.push('/')
 const goPlanner = () => router.push('/planner')
 const goTracks = () => router.push('/tracks')
 const goProfile = () => router.push('/profile')
-
-const goLogin = () => {
-  if (route.path !== '/login') {
-    router.push('/login')
-  }
-}
-
-const goRegister = () => {
-  if (route.path !== '/register') {
-    router.push('/register')
-  }
-}
+const goLogin = () => router.push('/login')
+const goRegister = () => router.push('/register')
 
 const logout = () => {
   clearAuthSession()
   sessionStorage.removeItem('tripPlan')
   sessionStorage.removeItem('tripPlannerSessionId')
-  router.push('/login')
+  sessionStorage.removeItem('tripPlannerUserId')
+  router.push('/')
 }
 </script>
 
-<style>
-#app-shell,
-body,
-html {
-  margin: 0;
-  min-height: 100%;
-}
-
-body {
-  background: #f4f7fb;
-}
-
-#app {
-  min-height: 100vh;
-}
-
+<style scoped>
 .app-layout {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(255, 205, 163, 0.55), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(107, 170, 255, 0.28), transparent 28%),
-    linear-gradient(180deg, #f7f4ef 0%, #eef3fb 100%);
+  background: transparent;
 }
 
 .app-header {
   position: sticky;
   top: 0;
-  z-index: 30;
+  z-index: 40;
+  height: auto;
+  padding: 14px 18px 0;
+  line-height: normal;
+  background: transparent;
+}
+
+.app-header__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 0 24px;
-  background: rgba(18, 37, 63, 0.92);
-  backdrop-filter: blur(10px);
+  padding: 14px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 18px 44px rgba(77, 122, 181, 0.14);
+  backdrop-filter: blur(16px);
 }
 
-.brand {
-  color: #fff3dd;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: 1px;
+.brand-button {
+  border: none;
+  background: transparent;
+  color: #183453;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   cursor: pointer;
 }
 
+.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .nav-btn {
-  color: #f6f8fb !important;
+  color: #264a71 !important;
+  font-weight: 700;
 }
 
 .app-content {
   padding: 0;
+}
+
+@media (max-width: 760px) {
+  .app-header {
+    padding: 12px 12px 0;
+  }
+
+  .app-header__inner {
+    flex-direction: column;
+    align-items: stretch;
+    border-radius: 24px;
+  }
+
+  .app-nav {
+    justify-content: center;
+  }
 }
 </style>
