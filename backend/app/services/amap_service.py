@@ -1,4 +1,4 @@
-﻿"""Structured wrapper around the AMap MCP service."""
+"""Structured wrapper around the AMap HTTP APIs with optional MCP fallback."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import shutil
 import sys
 import threading
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, TypeVar
 
 import httpx
 
@@ -34,8 +34,17 @@ from ..models.schemas import Location, POIInfo, WeatherInfo
 
 logger = logging.getLogger(__name__)
 
+AMAP_POI_TEXT_URL = "https://restapi.amap.com/v3/place/text"
+AMAP_POI_DETAIL_URL = "https://restapi.amap.com/v3/place/detail"
+AMAP_WEATHER_URL = "https://restapi.amap.com/v3/weather/weatherInfo"
+AMAP_GEOCODE_URL = "https://restapi.amap.com/v3/geocode/geo"
+AMAP_WALKING_URL = "https://restapi.amap.com/v3/direction/walking"
+AMAP_DRIVING_URL = "https://restapi.amap.com/v3/direction/driving"
+AMAP_TRANSIT_URL = "https://restapi.amap.com/v3/direction/transit/integrated"
+
 _amap_mcp_tool: Any = None
 _amap_service: Optional["AmapService"] = None
+T = TypeVar("T")
 
 
 class PersistentMCPTool:
@@ -258,10 +267,19 @@ class AmapService:
 
     def __init__(self, mcp_tool: Any | None = None) -> None:
         settings = get_settings()
-        self.api_key = settings.amap_api_key
+        provider = str(settings.amap_provider or "http").strip().lower()
+        if provider not in {"http", "mcp", "hybrid"}:
+            logger.warning("Invalid AMAP_PROVIDER=%s; defaulting to http", provider)
+            provider = "http"
+
+        self.provider = provider
+        self.api_key = settings.amap_api_key.strip()
         self.mcp_tool = mcp_tool
-        self._prefer_http = mcp_tool is None and bool(self.api_key)
-        self._http_client = httpx.Client(timeout=10.0) if self._prefer_http else None
+        self.http_enabled = provider in {"http", "hybrid"} and bool(self.api_key)
+        self.mcp_enabled = mcp_tool is not None or provider in {"mcp", "hybrid"}
+        self._http_client = (
+            httpx.Client(timeout=float(settings.amap_http_timeout)) if self.http_enabled else None
+        )
         self._mcp_tool_lock = threading.Lock()
         self._poi_detail_cache: Dict[str, Dict[str, Any]] = {}
         self._poi_detail_cache_lock = threading.Lock()
@@ -281,6 +299,70 @@ class AmapService:
             "maps_search_detail",
         ]
 
+    def health_status(self) -> Dict[str, Any]:
+        return {
+            "provider": self.provider,
+            "http_enabled": self.http_enabled,
+            "mcp_enabled": self.mcp_enabled,
+            "amap_key_configured": bool(self.api_key),
+            "mcp_connected": self.mcp_tool is not None,
+        }
+
+    @staticmethod
+    def _runtime_trace(message: str) -> None:
+        print(f"[AMAP] {message}", flush=True)
+
+    def _trace_poi_results(self, query_label: str, pois: Sequence[POIInfo]) -> None:
+        self._runtime_trace(f"POI results -> {query_label} count={len(pois)}")
+        for index, poi in enumerate(pois, start=1):
+            self._runtime_trace(
+                "  "
+                + f"{index}. name={poi.name} | type={poi.type or '-'} | "
+                + f"address={poi.address or '-'} | "
+                + f"location={poi.location.longitude},{poi.location.latitude}"
+            )
+
+    def _trace_weather_results(self, city: str, weather_info: Sequence[WeatherInfo]) -> None:
+        self._runtime_trace(f"Weather results -> city={city} count={len(weather_info)}")
+        for index, item in enumerate(weather_info, start=1):
+            self._runtime_trace(
+                "  "
+                + f"{index}. date={item.date} | day={item.day_weather} {item.day_temp}C | "
+                + f"night={item.night_weather} {item.night_temp}C | "
+                + f"wind={item.wind_direction} {item.wind_power}"
+            )
+
+    def _trace_geocode_result(self, address: str, city: Optional[str], location: Optional[Location]) -> None:
+        if location is None:
+            self._runtime_trace(f"Geocode result -> address={address} city={city or '-'} result=None")
+            return
+        self._runtime_trace(
+            f"Geocode result -> address={address} city={city or '-'} "
+            f"location={location.longitude},{location.latitude}"
+        )
+
+    def _trace_route_result(
+        self,
+        route_type: str,
+        origin_address: str,
+        destination_address: str,
+        route: Dict[str, Any],
+    ) -> None:
+        self._runtime_trace(
+            "Route result -> "
+            + f"type={route_type} | origin={origin_address} | destination={destination_address} | "
+            + f"distance={route.get('distance')} | duration={route.get('duration')} | "
+            + f"description={route.get('description')}"
+        )
+
+    def _trace_poi_detail_result(self, poi_id: str, detail: Dict[str, Any]) -> None:
+        self._runtime_trace(
+            "POI detail -> "
+            + f"id={poi_id} | name={detail.get('name', '')} | "
+            + f"type={detail.get('type', '')} | address={detail.get('address', '')} | "
+            + f"location={detail.get('location', '')}"
+        )
+
     def search_poi(self, keywords: str, city: str, citylimit: bool = True) -> List[POIInfo]:
         cache_key = (keywords.strip(), city.strip(), citylimit)
         with self._poi_search_cache_lock:
@@ -288,37 +370,16 @@ class AmapService:
         if cached is not None:
             return [item.model_copy(deep=True) for item in cached]
 
-        if self._prefer_http and self._http_client is not None:
-            try:
-                result = self._search_poi_via_http(*cache_key)
-                with self._poi_search_cache_lock:
-                    self._poi_search_cache[cache_key] = [item.model_copy(deep=True) for item in result]
-                logger.info("AMap HTTP search_poi keywords=%s city=%s results=%s", keywords, city, len(result))
-                return result
-            except Exception as exc:
-                logger.warning("AMap HTTP search failed keywords=%s city=%s fallback_mcp=%s", keywords, city, exc)
-
-        payload = self._call_tool(
-            tool_name="maps_text_search",
-            arguments={
-                "keywords": keywords.strip(),
-                "city": city.strip(),
-                "citylimit": str(citylimit).lower(),
-            },
-            preferred_keys=("pois",),
+        result = self._run_with_optional_mcp_fallback(
+            operation_name="search_poi",
+            http_runner=lambda: self._search_poi_via_http(*cache_key),
+            mcp_runner=lambda: self._search_poi_via_mcp(*cache_key),
         )
-
-        pois_raw = payload.get("pois", [])
-        if not isinstance(pois_raw, list):
-            logger.warning("AMap text search returned non-list pois payload")
-            return []
-
-        results = [self._normalize_search_poi(item) for item in pois_raw]
-        filtered = [item for item in results if item is not None]
         with self._poi_search_cache_lock:
-            self._poi_search_cache[cache_key] = [item.model_copy(deep=True) for item in filtered]
-        logger.info("AMap search_poi keywords=%s city=%s results=%s", keywords, city, len(filtered))
-        return filtered
+            self._poi_search_cache[cache_key] = [item.model_copy(deep=True) for item in result]
+        self._trace_poi_results(f"keywords={keywords} city={city}", result)
+        logger.info("AMap search_poi keywords=%s city=%s results=%s", keywords, city, len(result))
+        return result
 
     def get_weather(self, city: str) -> List[WeatherInfo]:
         cache_key = city.strip()
@@ -327,50 +388,16 @@ class AmapService:
         if cached is not None:
             return [item.model_copy(deep=True) for item in cached]
 
-        if self._prefer_http and self._http_client is not None:
-            try:
-                result = self._get_weather_via_http(cache_key)
-                with self._weather_cache_lock:
-                    self._weather_cache[cache_key] = [item.model_copy(deep=True) for item in result]
-                logger.info("AMap HTTP get_weather city=%s forecast_days=%s", city, len(result))
-                return result
-            except Exception as exc:
-                logger.warning("AMap HTTP weather failed city=%s fallback_mcp=%s", city, exc)
-
-        payload = self._call_tool(
-            tool_name="maps_weather",
-            arguments={"city": city.strip()},
-            preferred_keys=("forecasts", "lives"),
+        result = self._run_with_optional_mcp_fallback(
+            operation_name="get_weather",
+            http_runner=lambda: self._get_weather_via_http(cache_key),
+            mcp_runner=lambda: self._get_weather_via_mcp(cache_key),
         )
-
-        forecasts = payload.get("forecasts")
-        if isinstance(forecasts, list) and forecasts:
-            if isinstance(forecasts[0], dict) and isinstance(forecasts[0].get("casts"), list):
-                casts = forecasts[0].get("casts", [])
-                result = [self._normalize_forecast(item) for item in casts]
-                filtered = [item for item in result if item is not None]
-                logger.info("AMap get_weather city=%s forecast_days=%s", city, len(filtered))
-                return filtered
-
-            result = [self._normalize_forecast(item) for item in forecasts]
-            filtered = [item for item in result if item is not None]
-            if filtered:
-                with self._weather_cache_lock:
-                    self._weather_cache[cache_key] = [item.model_copy(deep=True) for item in filtered]
-                logger.info("AMap get_weather city=%s forecast_days=%s", city, len(filtered))
-                return filtered
-
-        lives = payload.get("lives", [])
-        if isinstance(lives, list) and lives:
-            live = self._normalize_live_weather(lives[0])
-            if live is not None:
-                with self._weather_cache_lock:
-                    self._weather_cache[cache_key] = [live.model_copy(deep=True)]
-                logger.info("AMap get_weather city=%s live_weather=1", city)
-                return [live]
-
-        logger.warning("AMap get_weather city=%s returned no structured weather", city)
-        return []
+        with self._weather_cache_lock:
+            self._weather_cache[cache_key] = [item.model_copy(deep=True) for item in result]
+        self._trace_weather_results(city, result)
+        logger.info("AMap get_weather city=%s forecast_days=%s", city, len(result))
+        return result
 
     def plan_route(
         self,
@@ -380,59 +407,35 @@ class AmapService:
         destination_city: Optional[str] = None,
         route_type: str = "walking",
     ) -> Dict[str, Any]:
-        tool_map = {
-            "walking": "maps_direction_walking_by_address",
-            "driving": "maps_direction_driving_by_address",
-            "transit": "maps_direction_transit_integrated_by_address",
-        }
-        tool_name = tool_map.get(route_type, "maps_direction_walking_by_address")
-
-        arguments: Dict[str, Any] = {
-            "origin_address": origin_address.strip(),
-            "destination_address": destination_address.strip(),
-        }
-        if origin_city:
-            arguments["origin_city"] = origin_city.strip()
-        if destination_city:
-            arguments["destination_city"] = destination_city.strip()
-
-        payload = self._call_tool(tool_name=tool_name, arguments=arguments, preferred_keys=("route", "transits"))
-        route = payload.get("route", payload)
-        distance = 0.0
-        duration = 0
-        description = ""
-
-        if route_type == "transit":
-            transits = route.get("transits", []) if isinstance(route, dict) else []
-            first = transits[0] if isinstance(transits, list) and transits else {}
-            distance = self._to_float(first.get("distance"), 0.0)
-            duration = self._to_int(first.get("duration"), 0)
-            description = str(first.get("cost") or "transit route planned")
-        else:
-            paths = route.get("paths", []) if isinstance(route, dict) else []
-            first = paths[0] if isinstance(paths, list) and paths else {}
-            distance = self._to_float(first.get("distance"), 0.0)
-            duration = self._to_int(first.get("duration"), 0)
-            description = str(first.get("strategy") or "route planned")
-
-        return {
-            "distance": distance,
-            "duration": duration,
-            "route_type": route_type,
-            "description": description,
-        }
+        normalized_route_type = str(route_type or "walking").strip().lower() or "walking"
+        result = self._run_with_optional_mcp_fallback(
+            operation_name=f"plan_route[{normalized_route_type}]",
+            http_runner=lambda: self._plan_route_via_http(
+                origin_address=origin_address,
+                destination_address=destination_address,
+                origin_city=origin_city,
+                destination_city=destination_city,
+                route_type=normalized_route_type,
+            ),
+            mcp_runner=lambda: self._plan_route_via_mcp(
+                origin_address=origin_address,
+                destination_address=destination_address,
+                origin_city=origin_city,
+                destination_city=destination_city,
+                route_type=normalized_route_type,
+            ),
+        )
+        self._trace_route_result(normalized_route_type, origin_address, destination_address, result)
+        return result
 
     def geocode(self, address: str, city: Optional[str] = None) -> Optional[Location]:
-        arguments: Dict[str, Any] = {"address": address.strip()}
-        if city:
-            arguments["city"] = city.strip()
-
-        payload = self._call_tool(tool_name="maps_geo", arguments=arguments, preferred_keys=("geocodes",))
-        geocodes = payload.get("geocodes", [])
-        if not isinstance(geocodes, list) or not geocodes:
-            logger.warning("AMap geocode returned no results for address=%s", address)
-            return None
-        return self._parse_location(geocodes[0].get("location"))
+        result = self._run_with_optional_mcp_fallback(
+            operation_name="geocode",
+            http_runner=lambda: self._geocode_via_http(address, city),
+            mcp_runner=lambda: self._geocode_via_mcp(address, city),
+        )
+        self._trace_geocode_result(address, city, result)
+        return result
 
     def get_poi_detail(self, poi_id: str) -> Dict[str, Any]:
         cache_key = poi_id.strip()
@@ -441,37 +444,40 @@ class AmapService:
         if cached is not None:
             return dict(cached)
 
-        if self._prefer_http and self._http_client is not None:
-            try:
-                detail = self._get_poi_detail_via_http(cache_key)
-                if detail:
-                    with self._poi_detail_cache_lock:
-                        self._poi_detail_cache[cache_key] = dict(detail)
-                    return detail
-            except Exception as exc:
-                logger.warning("AMap HTTP detail failed poi_id=%s fallback_mcp=%s", cache_key, exc)
-
-        payload = self._call_tool(
-            tool_name="maps_search_detail",
-            arguments={"id": cache_key},
-            preferred_keys=("pois", "poi"),
+        detail = self._run_with_optional_mcp_fallback(
+            operation_name="get_poi_detail",
+            http_runner=lambda: self._get_poi_detail_via_http(cache_key),
+            mcp_runner=lambda: self._get_poi_detail_via_mcp(cache_key),
         )
-        pois = payload.get("pois")
-        if isinstance(pois, list) and pois:
-            detail = dict(pois[0])
-            with self._poi_detail_cache_lock:
-                self._poi_detail_cache[cache_key] = dict(detail)
-            return detail
-        poi = payload.get("poi")
-        if isinstance(poi, dict):
-            detail = dict(poi)
-            with self._poi_detail_cache_lock:
-                self._poi_detail_cache[cache_key] = dict(detail)
-            return detail
-        if payload:
-            with self._poi_detail_cache_lock:
-                self._poi_detail_cache[cache_key] = dict(payload)
-        return payload
+        with self._poi_detail_cache_lock:
+            self._poi_detail_cache[cache_key] = dict(detail)
+        self._trace_poi_detail_result(cache_key, detail)
+        return detail
+
+    def _run_with_optional_mcp_fallback(
+        self,
+        operation_name: str,
+        http_runner: Callable[[], T],
+        mcp_runner: Callable[[], T],
+    ) -> T:
+        if self.http_enabled:
+            try:
+                return http_runner()
+            except Exception as exc:
+                if not self.mcp_enabled:
+                    self._runtime_trace(f"{operation_name} failed via HTTP: {exc}")
+                    raise RuntimeError(f"AMap {operation_name} failed via HTTP: {exc}") from exc
+                self._runtime_trace(f"{operation_name} failed via HTTP, fallback to MCP: {exc}")
+                logger.warning("AMap %s failed via HTTP; falling back to MCP: %s", operation_name, exc)
+
+        if self.mcp_enabled:
+            return mcp_runner()
+
+        if not self.api_key:
+            raise RuntimeError(f"AMap {operation_name} is unavailable because AMAP_API_KEY is missing")
+        raise RuntimeError(
+            f"AMap {operation_name} is unavailable because provider={self.provider} has no usable client"
+        )
 
     def _normalize_search_poi(self, item: Any) -> Optional[POIInfo]:
         normalized = self._normalize_poi(item)
@@ -508,7 +514,7 @@ class AmapService:
 
     def _search_poi_via_http(self, keywords: str, city: str, citylimit: bool) -> List[POIInfo]:
         payload = self._http_get_json(
-            "https://restapi.amap.com/v3/place/text",
+            AMAP_POI_TEXT_URL,
             {
                 "keywords": keywords,
                 "city": city,
@@ -524,9 +530,26 @@ class AmapService:
         results = [self._normalize_poi(item) for item in pois_raw]
         return [item for item in results if item is not None]
 
+    def _search_poi_via_mcp(self, keywords: str, city: str, citylimit: bool) -> List[POIInfo]:
+        payload = self._call_tool(
+            tool_name="maps_text_search",
+            arguments={
+                "keywords": keywords.strip(),
+                "city": city.strip(),
+                "citylimit": str(citylimit).lower(),
+            },
+            preferred_keys=("pois",),
+        )
+        pois_raw = payload.get("pois", [])
+        if not isinstance(pois_raw, list):
+            logger.warning("AMap text search returned non-list pois payload")
+            return []
+        results = [self._normalize_search_poi(item) for item in pois_raw]
+        return [item for item in results if item is not None]
+
     def _get_weather_via_http(self, city: str) -> List[WeatherInfo]:
         payload = self._http_get_json(
-            "https://restapi.amap.com/v3/weather/weatherInfo",
+            AMAP_WEATHER_URL,
             {
                 "city": city,
                 "extensions": "all",
@@ -546,9 +569,164 @@ class AmapService:
                 return [live]
         return []
 
+    def _get_weather_via_mcp(self, city: str) -> List[WeatherInfo]:
+        payload = self._call_tool(
+            tool_name="maps_weather",
+            arguments={"city": city.strip()},
+            preferred_keys=("forecasts", "lives"),
+        )
+
+        forecasts = payload.get("forecasts")
+        if isinstance(forecasts, list) and forecasts:
+            if isinstance(forecasts[0], dict) and isinstance(forecasts[0].get("casts"), list):
+                casts = forecasts[0].get("casts", [])
+                result = [self._normalize_forecast(item) for item in casts]
+                return [item for item in result if item is not None]
+
+            result = [self._normalize_forecast(item) for item in forecasts]
+            filtered = [item for item in result if item is not None]
+            if filtered:
+                return filtered
+
+        lives = payload.get("lives", [])
+        if isinstance(lives, list) and lives:
+            live = self._normalize_live_weather(lives[0])
+            if live is not None:
+                return [live]
+
+        logger.warning("AMap get_weather city=%s returned no structured weather", city)
+        return []
+
+    def _geocode_via_http(self, address: str, city: Optional[str] = None) -> Optional[Location]:
+        params: Dict[str, Any] = {"address": address.strip()}
+        if city:
+            params["city"] = city.strip()
+        payload = self._http_get_json(AMAP_GEOCODE_URL, params)
+        geocodes = payload.get("geocodes", [])
+        if not isinstance(geocodes, list) or not geocodes:
+            logger.warning("AMap geocode returned no results for address=%s", address)
+            return None
+        return self._parse_location(geocodes[0].get("location"))
+
+    def _geocode_via_mcp(self, address: str, city: Optional[str] = None) -> Optional[Location]:
+        arguments: Dict[str, Any] = {"address": address.strip()}
+        if city:
+            arguments["city"] = city.strip()
+
+        payload = self._call_tool(tool_name="maps_geo", arguments=arguments, preferred_keys=("geocodes",))
+        geocodes = payload.get("geocodes", [])
+        if not isinstance(geocodes, list) or not geocodes:
+            logger.warning("AMap geocode returned no results for address=%s", address)
+            return None
+        return self._parse_location(geocodes[0].get("location"))
+
+    def _plan_route_via_http(
+        self,
+        origin_address: str,
+        destination_address: str,
+        origin_city: Optional[str],
+        destination_city: Optional[str],
+        route_type: str,
+    ) -> Dict[str, Any]:
+        origin = self._geocode_via_http(origin_address, origin_city)
+        destination = self._geocode_via_http(destination_address, destination_city)
+        if origin is None or destination is None:
+            raise ValueError("Failed to geocode route endpoints")
+
+        origin_text = f"{origin.longitude},{origin.latitude}"
+        destination_text = f"{destination.longitude},{destination.latitude}"
+
+        if route_type == "transit":
+            params: Dict[str, Any] = {
+                "origin": origin_text,
+                "destination": destination_text,
+                "city": (origin_city or destination_city or "").strip(),
+                "cityd": (destination_city or origin_city or "").strip(),
+                "extensions": "base",
+            }
+            params = {key: value for key, value in params.items() if value}
+            payload = self._http_get_json(AMAP_TRANSIT_URL, params)
+            return self._normalize_route_payload(payload, route_type)
+
+        if route_type == "driving":
+            payload = self._http_get_json(
+                AMAP_DRIVING_URL,
+                {
+                    "origin": origin_text,
+                    "destination": destination_text,
+                    "extensions": "base",
+                },
+            )
+            return self._normalize_route_payload(payload, route_type)
+
+        payload = self._http_get_json(
+            AMAP_WALKING_URL,
+            {
+                "origin": origin_text,
+                "destination": destination_text,
+            },
+        )
+        return self._normalize_route_payload(payload, "walking")
+
+    def _plan_route_via_mcp(
+        self,
+        origin_address: str,
+        destination_address: str,
+        origin_city: Optional[str],
+        destination_city: Optional[str],
+        route_type: str,
+    ) -> Dict[str, Any]:
+        tool_map = {
+            "walking": "maps_direction_walking_by_address",
+            "driving": "maps_direction_driving_by_address",
+            "transit": "maps_direction_transit_integrated_by_address",
+        }
+        tool_name = tool_map.get(route_type, "maps_direction_walking_by_address")
+
+        arguments: Dict[str, Any] = {
+            "origin_address": origin_address.strip(),
+            "destination_address": destination_address.strip(),
+        }
+        if origin_city:
+            arguments["origin_city"] = origin_city.strip()
+        if destination_city:
+            arguments["destination_city"] = destination_city.strip()
+
+        payload = self._call_tool(tool_name=tool_name, arguments=arguments, preferred_keys=("route", "transits"))
+        return self._normalize_route_payload(payload, route_type)
+
+    def _normalize_route_payload(self, payload: Dict[str, Any], route_type: str) -> Dict[str, Any]:
+        route = payload.get("route", payload)
+        distance = 0.0
+        duration = 0
+        description = ""
+
+        if route_type == "transit":
+            transits = route.get("transits", []) if isinstance(route, dict) else []
+            if not transits and isinstance(payload.get("transits"), list):
+                transits = payload.get("transits", [])
+            first = transits[0] if isinstance(transits, list) and transits else {}
+            distance = self._to_float(first.get("distance"), 0.0)
+            duration = self._to_int(first.get("duration"), 0)
+            cost = str(first.get("cost") or "").strip()
+            description = f"transit cost {cost}" if cost else "transit route planned"
+        else:
+            paths = route.get("paths", []) if isinstance(route, dict) else []
+            first = paths[0] if isinstance(paths, list) and paths else {}
+            distance = self._to_float(first.get("distance"), 0.0)
+            duration = self._to_int(first.get("duration"), 0)
+            description = str(first.get("strategy") or f"{route_type} route planned")
+
+        return {
+            "distance": distance,
+            "duration": duration,
+            "route_type": route_type,
+            "description": description,
+        }
+
     def _get_poi_detail_via_http(self, poi_id: str) -> Dict[str, Any]:
         payload = self._http_get_json(
-            "https://restapi.amap.com/v3/place/detail",
+            AMAP_POI_DETAIL_URL,
             {
                 "id": poi_id,
                 "extensions": "all",
@@ -559,18 +737,41 @@ class AmapService:
             return dict(pois[0])
         return payload
 
+    def _get_poi_detail_via_mcp(self, poi_id: str) -> Dict[str, Any]:
+        payload = self._call_tool(
+            tool_name="maps_search_detail",
+            arguments={"id": poi_id},
+            preferred_keys=("pois", "poi"),
+        )
+        pois = payload.get("pois")
+        if isinstance(pois, list) and pois:
+            return dict(pois[0])
+        poi = payload.get("poi")
+        if isinstance(poi, dict):
+            return dict(poi)
+        return dict(payload)
+
     def _http_get_json(self, url: str, params: Dict[str, Any]) -> Dict[str, Any]:
         if not self.api_key or self._http_client is None:
             raise RuntimeError("AMap HTTP client is not configured")
 
+        endpoint_name = url.rsplit("/", 1)[-1]
+        sanitized_params = {key: value for key, value in params.items() if key != "key"}
+        self._runtime_trace(f"HTTP request -> {endpoint_name} params={sanitized_params}")
         response = self._http_client.get(url, params={"key": self.api_key, **params})
         response.raise_for_status()
         payload = response.json()
         if not isinstance(payload, dict):
+            self._runtime_trace(f"HTTP response <- {endpoint_name} invalid JSON payload")
             raise ValueError("AMap HTTP response must be a JSON object")
         status = str(payload.get("status") or "")
         if status and status != "1":
-            raise ValueError(str(payload.get("info") or payload.get("infocode") or "AMap API request failed"))
+            info = str(payload.get("info") or payload.get("infocode") or "AMap API request failed")
+            self._runtime_trace(f"HTTP response <- {endpoint_name} failed info={info}")
+            raise ValueError(f"{endpoint_name}: {info}")
+        self._runtime_trace(
+            f"HTTP response <- {endpoint_name} ok status={status or 'n/a'} keys={list(payload.keys())}"
+        )
         return payload
 
     def _call_tool(
@@ -580,6 +781,7 @@ class AmapService:
         preferred_keys: Sequence[str] = (),
     ) -> Dict[str, Any]:
         mcp_tool = self._ensure_mcp_tool()
+        self._runtime_trace(f"MCP request -> {tool_name} arguments={arguments}")
         logger.debug("AMap call tool=%s arguments=%s", tool_name, arguments)
         raw_result = mcp_tool.run(
             {
@@ -590,7 +792,9 @@ class AmapService:
         )
         payload = self._parse_tool_payload(raw_result, preferred_keys=preferred_keys)
         if not isinstance(payload, dict):
+            self._runtime_trace(f"MCP response <- {tool_name} invalid payload type={type(payload).__name__}")
             raise ValueError(f"Unexpected AMap payload type for {tool_name}: {type(payload).__name__}")
+        self._runtime_trace(f"MCP response <- {tool_name} ok keys={list(payload.keys())}")
         return payload
 
     @classmethod
@@ -884,6 +1088,3 @@ def get_amap_service() -> AmapService:
         _amap_service = AmapService()
 
     return _amap_service
-
-
-

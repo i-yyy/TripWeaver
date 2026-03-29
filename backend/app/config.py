@@ -1,4 +1,4 @@
-"""应用配置。"""
+"""Application configuration."""
 
 from __future__ import annotations
 
@@ -9,28 +9,35 @@ from typing import List
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
 
-# 优先加载项目根目录 .env
-load_dotenv()
+APP_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = APP_DIR.parent
+PROJECT_ROOT = BACKEND_DIR.parent
 
-# 可选加载 HelloAgents 的 .env 作为兜底配置
-helloagents_env = Path(__file__).parent.parent.parent.parent / "HelloAgents" / ".env"
-if helloagents_env.exists():
-    load_dotenv(helloagents_env, override=False)
+
+def _load_env_files() -> None:
+    env_candidates = [
+        PROJECT_ROOT / ".env",
+        BACKEND_DIR / ".env",
+        PROJECT_ROOT / "HelloAgents" / ".env",
+    ]
+    for env_path in env_candidates:
+        if env_path.exists():
+            load_dotenv(env_path, override=False)
+
+
+_load_env_files()
 
 
 class Settings(BaseSettings):
-    """运行时配置。"""
+    """Runtime settings."""
 
-    # 应用信息
-    app_name: str = "HelloAgents 智能旅行助手"
+    app_name: str = "HelloAgents Travel Planner"
     app_version: str = "1.0.0"
     debug: bool = False
 
-    # 服务配置
     host: str = "0.0.0.0"
     port: int = 8000
 
-    # CORS 配置
     cors_origins: str = (
         "http://localhost:5173,"
         "http://localhost:3000,"
@@ -38,20 +45,18 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000"
     )
 
-    # 外部 API
     amap_api_key: str = ""
+    amap_provider: str = "http"
+    amap_http_timeout: float = 10.0
     unsplash_access_key: str = ""
     unsplash_secret_key: str = ""
 
-    # LLM
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4"
 
-    # 持久化
     database_url: str = "sqlite:///./trip_planner.db"
 
-    # 向量检索 / RAG
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str = ""
     qdrant_collection_kb: str = "trip_kb"
@@ -66,11 +71,9 @@ class Settings(BaseSettings):
     rag_rerank_top_k: int = 6
     rag_min_score: float = 0.0
 
-    # 日志
     log_level: str = "INFO"
 
     class Config:
-        env_file = ".env"
         case_sensitive = False
         extra = "ignore"
 
@@ -86,23 +89,23 @@ def get_settings() -> Settings:
 
 
 def validate_config() -> bool:
-    """校验关键配置。"""
-    errors = []
-    warnings = []
+    """Validate critical runtime settings."""
+    errors: List[str] = []
+    warnings: List[str] = []
 
     if not settings.amap_api_key:
-        errors.append("AMAP_API_KEY 未配置。")
+        errors.append("AMAP_API_KEY is not configured.")
 
     llm_api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not llm_api_key:
-        warnings.append("LLM_API_KEY/OPENAI_API_KEY 未配置，LLM 功能可能不可用。")
+        warnings.append("LLM_API_KEY/OPENAI_API_KEY is not configured; LLM features may be unavailable.")
 
     if errors:
-        error_msg = "配置错误:\n" + "\n".join(f"  - {msg}" for msg in errors)
+        error_msg = "Configuration errors:\n" + "\n".join(f"  - {msg}" for msg in errors)
         raise ValueError(error_msg)
 
     if warnings:
-        print("\n配置告警:")
+        print("\nConfiguration warnings:")
         for warning in warnings:
             print(f"  - {warning}")
 
@@ -110,22 +113,24 @@ def validate_config() -> bool:
 
 
 def print_config() -> None:
-    """打印生效配置（不输出敏感值）。"""
-    print(f"应用: {settings.app_name}")
-    print(f"版本: {settings.app_version}")
-    print(f"服务地址: {settings.host}:{settings.port}")
-    print(f"已配置高德 Key: {'是' if settings.amap_api_key else '否'}")
+    """Print effective non-sensitive settings."""
+    print(f"App: {settings.app_name}")
+    print(f"Version: {settings.app_version}")
+    print(f"Server: {settings.host}:{settings.port}")
+    print(f"AMap key configured: {'yes' if settings.amap_api_key else 'no'}")
+    print(f"AMap provider: {settings.amap_provider}")
+    print(f"AMap HTTP timeout: {settings.amap_http_timeout}")
 
     llm_api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
     llm_base_url = os.getenv("LLM_BASE_URL") or settings.openai_base_url
     llm_model = os.getenv("LLM_MODEL_ID") or settings.openai_model
 
-    print(f"已配置 LLM Key: {'是' if llm_api_key else '否'}")
-    print(f"LLM 地址: {llm_base_url}")
-    print(f"LLM 模型: {llm_model}")
-    print(f"数据库: {settings.database_url}")
-    print(f"Qdrant 地址: {settings.qdrant_url}")
-    print(f"知识库集合: {settings.qdrant_collection_kb}")
-    print(f"记忆库集合: {settings.qdrant_collection_memory}")
-    print(f"向量模型: {settings.embedding_model}")
-    print(f"日志级别: {settings.log_level}")
+    print(f"LLM key configured: {'yes' if llm_api_key else 'no'}")
+    print(f"LLM base URL: {llm_base_url}")
+    print(f"LLM model: {llm_model}")
+    print(f"Database: {settings.database_url}")
+    print(f"Qdrant URL: {settings.qdrant_url}")
+    print(f"Knowledge collection: {settings.qdrant_collection_kb}")
+    print(f"Memory collection: {settings.qdrant_collection_memory}")
+    print(f"Embedding model: {settings.embedding_model}")
+    print(f"Log level: {settings.log_level}")

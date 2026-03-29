@@ -1,4 +1,4 @@
-"""FastAPI 应用入口。"""
+"""FastAPI application entrypoint."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ settings = get_settings()
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
-    description="基于多智能体、用户画像、记忆与本地知识库的旅行规划 API。",
+    description="Travel planning API with multi-agent orchestration, profile, memory, and local knowledge base.",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -45,25 +45,58 @@ async def force_utf8_json_charset(request: Request, call_next) -> Response:
     return response
 
 
+@app.middleware("http")
+async def log_api_json_response(request: Request, call_next) -> Response:
+    response = await call_next(request)
+
+    if not request.url.path.startswith("/api"):
+        return response
+
+    content_type = response.headers.get("content-type", "")
+    if "application/json" not in content_type.lower():
+        return response
+
+    body = b""
+    async for chunk in response.body_iterator:
+        body += chunk
+
+    text = body.decode("utf-8", errors="replace")
+    if len(text) > 4000:
+        text = text[:4000] + "...<truncated>"
+
+    print(
+        f"[API] {request.method} {request.url.path} -> {response.status_code} body={text}",
+        flush=True,
+    )
+
+    return Response(
+        content=body,
+        status_code=response.status_code,
+        headers=dict(response.headers),
+        media_type=response.media_type,
+        background=response.background,
+    )
+
+
 @app.on_event("startup")
 async def startup_event() -> None:
     print("\n" + "=" * 60)
-    print(f"启动 {settings.app_name} v{settings.app_version}")
+    print(f"Starting {settings.app_name} v{settings.app_version}")
     print("=" * 60)
 
     print_config()
     validate_config()
     init_db()
 
-    print("\nAPI 文档: http://localhost:8000/docs")
-    print("ReDoc 文档: http://localhost:8000/redoc")
+    print("\nAPI docs: http://localhost:8000/docs")
+    print("ReDoc: http://localhost:8000/redoc")
     print("=" * 60 + "\n")
 
 
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
     print("\n" + "=" * 60)
-    print("应用正在关闭...")
+    print("Shutting down application...")
     print("=" * 60 + "\n")
 
 
@@ -72,7 +105,7 @@ async def root() -> dict:
     return {
         "name": settings.app_name,
         "version": settings.app_version,
-        "status": "运行中",
+        "status": "running",
         "docs": "/docs",
         "redoc": "/redoc",
     }
@@ -81,7 +114,7 @@ async def root() -> dict:
 @app.get("/health")
 async def health() -> dict:
     return {
-        "status": "健康",
+        "status": "healthy",
         "service": settings.app_name,
         "version": settings.app_version,
     }
