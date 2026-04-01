@@ -9,6 +9,7 @@ from typing import Dict, List, Sequence, Set, Tuple
 
 from ..models.agent_schemas import AgentExecutionStatus, HotelAgentInput, HotelAgentOutput
 from ..models.schemas import Hotel, Location, POIInfo
+from ..models.skill_schemas import SelectedSkill
 from ..services.amap_service import AmapService, get_amap_service
 
 logger = logging.getLogger(__name__)
@@ -82,13 +83,13 @@ class HotelAgent:
         if self._contains_cjk(raw_accommodation):
             extra_queries.insert(0, raw_accommodation)
 
-        for query in queries + extra_queries:
+        for query in self._skill_query_boosts(payload.skills) + queries + extra_queries:
             compact = query.strip()
             if compact and compact not in seen:
                 seen.add(compact)
                 ordered.append(compact)
 
-        return ordered[:4]
+        return ordered[:5]
 
     def _rank_and_convert(self, payload: HotelAgentInput, pois: Sequence[POIInfo]) -> List[Hotel]:
         seen: Set[str] = set()
@@ -119,6 +120,7 @@ class HotelAgent:
         text = f"{poi.name} {poi.type}".lower()
         accommodation = request.accommodation.lower()
         score = 1.0
+        skill_keys = {skill.key for skill in payload.skills}
 
         if "luxury" in accommodation and any(token in text for token in ("豪华", "五星", "高档", "国际")):
             score += 2.5
@@ -133,6 +135,11 @@ class HotelAgent:
             score += 1.0 if any(token in text for token in ("经济", "快捷", "连锁", "旅舍")) else -0.5
         elif request.budget_level == "high":
             score += 1.0 if any(token in text for token in ("豪华", "五星", "高档")) else -0.5
+
+        if "low_mobility" in skill_keys and any(token in text for token in ("地铁", "交通", "商圈", "中心", "站")):
+            score += 1.5
+        if "family_friendly" in skill_keys and any(token in text for token in ("酒店", "连锁", "商务")):
+            score += 0.6
 
         return score
 
@@ -174,6 +181,18 @@ class HotelAgent:
         if request.budget_level == "low":
             return "low"
         return "medium"
+
+    @staticmethod
+    def _skill_query_boosts(skills: List[SelectedSkill]) -> List[str]:
+        ordered: List[str] = []
+        seen: Set[str] = set()
+        for skill in skills:
+            for query in skill.hotel_query_boosts:
+                compact = query.strip()
+                if compact and compact not in seen:
+                    seen.add(compact)
+                    ordered.append(compact)
+        return ordered
 
     @staticmethod
     def _dedupe_key(poi: POIInfo) -> str:

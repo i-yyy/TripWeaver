@@ -7,6 +7,7 @@ from typing import Optional
 
 from ..models.agent_schemas import SupervisorAgentInput
 from ..models.schemas import RecommendationReason, TripPlan, TripRequest
+from ..models.skill_schemas import SelectedSkill
 from .supervisor_agent import SupervisorAgent
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class MultiAgentTripPlanner:
         memory_context: str = "",
         rag_context: str = "",
         recommendation_reasons: Optional[list[RecommendationReason]] = None,
+        skills: Optional[list[SelectedSkill]] = None,
     ) -> TripPlan:
         result = await self.supervisor_agent.execute(
             SupervisorAgentInput(
@@ -39,6 +41,7 @@ class MultiAgentTripPlanner:
                 memory_context=memory_context,
                 rag_context=rag_context,
                 recommendation_reasons=recommendation_reasons or [],
+                skills=skills or [],
             )
         )
         if result.status.degraded:

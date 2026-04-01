@@ -7,6 +7,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
+from .skill_schemas import SelectedSkill
+
 
 # =====================
 # Request schemas
@@ -207,6 +209,7 @@ class TripPlan(BaseModel):
     overall_suggestions: str
     budget: Optional[Budget] = None
     recommendation_reasons: List[RecommendationReason] = Field(default_factory=list)
+    applied_skills: List[SelectedSkill] = Field(default_factory=list)
 
 
 class POIInfo(BaseModel):

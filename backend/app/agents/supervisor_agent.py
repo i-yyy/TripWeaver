@@ -47,6 +47,7 @@ class SupervisorAgent:
                     request=request,
                     profile_context=payload.profile_context,
                     rag_context=payload.rag_context,
+                    skills=payload.skills,
                 )
             )
         )
@@ -56,6 +57,7 @@ class SupervisorAgent:
                 HotelAgentInput(
                     request=request,
                     profile_context=payload.profile_context,
+                    skills=payload.skills,
                 )
             )
         )
@@ -76,6 +78,7 @@ class SupervisorAgent:
                 memory_context=payload.memory_context,
                 rag_context=payload.rag_context,
                 recommendation_reasons=payload.recommendation_reasons,
+                skills=payload.skills,
                 attraction_result=attraction_result,
                 weather_result=weather_result,
                 hotel_result=hotel_result,

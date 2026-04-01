@@ -13,6 +13,7 @@ from hello_agents import SimpleAgent
 
 from ..models.agent_schemas import AgentExecutionStatus, PlanningAgentInput, PlanningAgentOutput
 from ..models.schemas import Attraction, Budget, DayPlan, Hotel, Location, Meal, TripPlan, WeatherInfo
+from ..models.skill_schemas import SelectedSkill
 from ..services.amap_service import get_amap_service
 from ..services.llm_service import get_llm
 from ..services.unsplash_service import get_unsplash_service
@@ -108,7 +109,7 @@ class PlanningAgent:
         try:
             raw_response = await asyncio.to_thread(self.planner_runner.run, prompt)
             trip_plan = self._parse_response(raw_response, payload)
-            trip_plan = await asyncio.to_thread(self._enrich_trip_plan, trip_plan, payload)
+            trip_plan = await self._safe_enrich_plan(trip_plan, payload)
             return PlanningAgentOutput(
                 status=AgentExecutionStatus(success=True, degraded=False, warnings=[]),
                 trip_plan=trip_plan,
@@ -118,12 +119,19 @@ class PlanningAgent:
             warning = f"Planning agent fell back to deterministic plan: {exc}"
             logger.warning(warning)
             trip_plan = self.build_fallback_plan(payload)
-            trip_plan = await asyncio.to_thread(self._enrich_trip_plan, trip_plan, payload)
+            trip_plan = await self._safe_enrich_plan(trip_plan, payload)
             return PlanningAgentOutput(
                 status=AgentExecutionStatus(success=False, degraded=True, warnings=[warning], error=str(exc)),
                 trip_plan=trip_plan,
                 raw_response=None,
             )
+
+    async def _safe_enrich_plan(self, trip_plan: TripPlan, payload: PlanningAgentInput) -> TripPlan:
+        try:
+            return await asyncio.to_thread(self._enrich_trip_plan, trip_plan, payload)
+        except Exception as exc:  # pragma: no cover - external dependency
+            logger.warning("Trip plan enrichment failed: %s", exc)
+            return trip_plan
 
     def build_fallback_plan(self, payload: PlanningAgentInput) -> TripPlan:
         request = payload.request
@@ -174,15 +182,18 @@ class PlanningAgent:
             overall_suggestions=overall_suggestions,
             budget=budget,
             recommendation_reasons=payload.recommendation_reasons,
+            applied_skills=payload.skills,
         )
 
     def _build_prompt(self, payload: PlanningAgentInput) -> str:
+        skill_block = self._build_skill_prompt_block(payload.skills)
         structured_context = {
             "trip_request": payload.request.model_dump(),
             "profile_context": payload.profile_context,
             "memory_context": payload.memory_context,
             "rag_context": payload.rag_context,
             "recommendation_reasons": [reason.model_dump() for reason in payload.recommendation_reasons],
+            "skills": [self._skill_prompt_item(skill) for skill in payload.skills],
             "weather": {
                 "summary": payload.weather_result.summary,
                 "suggestions": payload.weather_result.suggestions,
@@ -196,8 +207,30 @@ class PlanningAgent:
         return (
             "请基于以下结构化上下文生成中文旅行计划 JSON。"
             "再次强调：只能输出 JSON，所有说明必须使用简体中文。\n"
-            f"{context_json}"
+            f"{skill_block}{context_json}"
         )
+
+    @staticmethod
+    def _skill_prompt_item(skill: SelectedSkill) -> Dict[str, Any]:
+        return {
+            "key": skill.key,
+            "name": skill.name,
+            "reasons": list(skill.reasons),
+            "planning_rules": list(skill.planning_rules),
+            "output_hints": list(skill.output_hints),
+        }
+
+    def _build_skill_prompt_block(self, skills: List[SelectedSkill]) -> str:
+        if not skills:
+            return ""
+
+        lines = ["Enabled skills. Prioritize these rules before arranging the itinerary:"]
+        for skill in skills:
+            lines.append(f"- {skill.name} ({skill.key})")
+            for rule in skill.planning_rules:
+                lines.append(f"  * {rule}")
+        lines.append("")
+        return "\n".join(lines)
 
     def _parse_response(self, response: Any, payload: PlanningAgentInput) -> TripPlan:
         json_str = self._extract_json(str(response))
@@ -284,6 +317,7 @@ class PlanningAgent:
             "overall_suggestions": overall_suggestions,
             "budget": budget,
             "recommendation_reasons": payload.recommendation_reasons,
+            "applied_skills": payload.skills,
         }
 
     def _normalize_day(
