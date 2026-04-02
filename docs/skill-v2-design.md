@@ -1,152 +1,67 @@
-# Travel Agent Skill V2 设计
+# Travel Agent Skill V2 设计建议
 
 ## 1. 目标
 
 第一版 skill 已经验证了三件事：
 
-- skill 机制能稳定落到当前项目的多 agent 编排中
-- skill 能真实影响 query、排序和 planning prompt
-- 前端用户可以通过现有表单稳定触发 skill
+- skill 机制对当前项目是可落地的。
+- skill 能显著影响 query 和 planning prompt。
+- 前端用户能通过表单输入稳定触发 skill。
 
-第二版的目标不是简单“再加几个 skill”，而是把 skill 系统从第一版的轻量策略层升级成更可控的约束系统。
+第二版不应该只是“再加几个 skill”，而应该解决第一版没有覆盖的结构性问题：
 
-第二版要解决的核心问题：
-
-1. skill 需要区分 `static` 和 `dynamic`
-2. skill 需要有数量上限，避免互相稀释
-3. `hard constraints` 不能只靠 prompt，需要后置校验闭环
-4. skill 要继续保持轻量，不引入复杂自治链路
+1. 从“静态偏好 skill”扩展到“动态约束 skill”。
+2. 从“只影响景点和 prompt”扩展到“影响酒店、餐饮、节奏、路线密度”。
+3. 从“简单命中”扩展到“有优先级、冲突处理、硬软约束”。
 
 
-## 2. 第二版总体原则
+## 2. 第二版总体方向
 
-第二版建议坚持四个原则：
+建议第二版重点做两类 skill：
 
-### 2.1 阶段顺序固定
+### 2.1 约束型 skill
 
-`static` 和 `dynamic` 的大阶段顺序要写死，不建议自由组合。
+这类 skill 解决“不能踩线”的问题，优先级高于偏好。
 
-推荐顺序：
+例如：
 
-1. 入口阶段执行 `static selection`
-2. 子 agent 获取结构化结果
-3. 基于运行时结果执行 `dynamic augmentation`
-4. 合并 skill 并做冲突处理
-5. 把最终 skill 集合交给 `PlanningAgent`
-6. 规划结果出来后执行 `hard constraint validation`
-
-原因：
-
-- `static skills` 依赖用户输入，天然应该先出
-- `dynamic skills` 依赖天气、日期、中间结果，天然应该后出
-- 如果不固定顺序，skill 来源会混乱，调试、解释、测试都会变难
-
-建议：
-
-- 阶段顺序固定
-- 阶段内规则可扩展
-
-### 2.2 skill 数量受控
-
-第二版必须给 skill 设置执行上限，而且不能只设置总数上限，还要设置分层上限。
-
-推荐上限：
-
-- `hard-constraint skills` 最多 3 个
-- `style/preference skills` 最多 2 个
-- 最终总 skill 上限 4 个
-
-原因：
-
-- skill 太多会让 prompt 稀释
-- query boost 太多会让召回发散
-- 冲突会明显增加
-- 前端解释成本会快速上升
-
-裁剪原则：
-
-1. 优先保留 `hard constraints`
-2. 再保留高分 `dynamic skills`
-3. 最后保留 `style skills`
-
-### 2.3 hard constraints 必须闭环
-
-第二版最重要的增强，是给 `hard constraints` 增加后置校验闭环。
-
-推荐做法不是复杂反思链，而是轻量 validator：
-
-1. `PlanningAgent` 产出 trip plan
-2. `PlanConstraintValidator` 对结果做规则检查
-3. 如果轻微违规：
-   - 记录 warning
-   - 尝试自动修补局部字段
-4. 如果严重违规：
-   - 执行一次 repair
-   - 或回退到 deterministic/fallback repair
-
-为什么必须做：
-
-- 只靠 prompt，LLM 不会稳定 100% obey
-- 如果没有校验，`hard constraints` 只是建议，不是真约束
-- 第二版里预算、饮食、天气这类 skill 必须具备“校验后可解释”
-
-### 2.4 skill 继续保持轻量
-
-第二版依然不建议做：
-
-- skill 自己直接发起独立工具调用
-- skill 链式多轮自治决策
-- 黑盒 LLM skill selector
-- skill marketplace
-
-当前项目的优势是结构简单、可控、可测，第二版不要把系统做重。
-
-
-## 3. 第二版 skill 分类
-
-第二版建议把 skill 分成两大类。
-
-### 3.1 约束型 skill
-
-优先级高于偏好型 skill，负责解决“不能踩线”的问题。
-
-典型场景：
-
-- 预算
-- 饮食限制
 - 天气高温
-- 周末高峰
-- 交通限制
+- 周末/热门时段拥挤
+- 低预算
+- 饮食限制
+- 交通方式限制
 
-### 3.2 风格型 skill
+### 2.2 风格型 skill
 
-负责解决“更像用户想要的旅行”的问题。
+这类 skill 解决“怎么更像用户想要的旅行”的问题。
 
-典型场景：
+例如：
 
-- 本地体验
-- 公共交通优先
-- 自驾友好
 - 经典打卡
-- 情侣氛围
+- 本地体验
+- 情侣出行
+- 夜游偏好
+- 一日/短途紧凑行程
 
 
-## 4. 第二版推荐 skill
+## 3. 第二版优先做哪些 skill
 
-下面保留并明确推荐第二版的 skill 列表。
+下面是我建议的第二版 skill 列表，按优先级排序。
 
-## 4.1 P0：第二版首批必须做
+## 3.1 P0：必须优先做
 
-### 4.1.1 `budget_guard`
+这些 skill 能直接提升结果稳定性和用户感知。
+
+### 3.1.1 `budget_guard`
 
 目标：
 
-- 把 `budget_level` 变成真正的执行约束
+- 把预算真正变成可执行约束，而不是只影响酒店估价。
 
 为什么值得做：
 
-- 预算是高频输入
-- 当前预算更多影响估价，约束还不够强
+- 预算是所有用户都会填的高频字段。
+- 目前 `budget_level` 对最终 itinerary 的约束还比较弱。
 
 触发：
 
@@ -155,25 +70,25 @@
 
 作用：
 
-- `AttractionAgent` 优先免费或低门票景点
-- `HotelAgent` 提高经济型酒店排序
-- `PlanningAgent` 控制门票、餐饮、交通成本描述
-- `PlanConstraintValidator` 检查总体预算是否明显超出 `low`
+- `AttractionAgent` 优先免费/低门票景点
+- `HotelAgent` 提高经济型酒店权重
+- `PlanningAgent` 强制控制单日门票/餐饮/交通描述
+- `Budget` 汇总时追加预算解释
 
-skill 类型：
+适合当前架构：
 
-- `hard constraint`
+- 你们已经有 `budget_level`、酒店估价、门票估算、交通成本估算，基础足够。
 
-### 4.1.2 `dietary_safe`
+### 3.1.2 `dietary_safe`
 
 目标：
 
-- 把饮食限制真正作用到每日三餐
+- 把饮食限制从“字段存在”变成“餐饮安排真的可执行”。
 
 为什么值得做：
 
-- 第一版有 `food_explorer`，但缺“能不能吃”的约束
-- 餐饮错误是高敏感问题
+- 第一版 `food_explorer` 偏“吃得好”，第二版要补“能不能吃”。
+- 这个 skill 直接影响 meal 质量，用户体验非常敏感。
 
 触发：
 
@@ -182,24 +97,24 @@ skill 类型：
 
 作用：
 
-- `PlanningAgent` 生成三餐时加入硬约束
-- meal 描述必须回答：吃什么、为什么符合限制
-- `PlanConstraintValidator` 检查三餐是否违反限制
+- `PlanningAgent` 对三餐生成增加硬约束
+- meals 描述必须回答：吃什么、为什么符合限制
+- `food_explorer` 与它可以共存，但 `dietary_safe` 优先级更高
 
-skill 类型：
+适合当前架构：
 
-- `hard constraint`
+- 你们当前餐饮主要由 `PlanningAgent` 生成，这种 skill 很容易在 prompt 层先落地。
 
-### 4.1.3 `heat_avoidance`
+### 3.1.3 `heat_avoidance`
 
 目标：
 
-- 针对高温天气调整节奏和时段
+- 针对高温、暴晒、夏季出行做节奏调整。
 
 为什么值得做：
 
-- 和 `rainy_day` 对称，是高频天气需求
-- 适用范围很广
+- 这是和 `rainy_day` 对称的高频天气 skill。
+- 比“雨天备选”更普适，特别适合国内夏季城市旅游。
 
 触发：
 
@@ -208,48 +123,50 @@ skill 类型：
 
 作用：
 
-- `AttractionAgent` 提高室内、阴凉、傍晚友好景点
-- `PlanningAgent` 调整时段，上午和傍晚安排主景点，中午安排休息或室内
-- `PlanConstraintValidator` 检查高温日是否仍安排过多暴晒户外点
+- `AttractionAgent` 提高室内/树荫/傍晚友好景点得分
+- `PlanningAgent` 调整时段：上午/傍晚重景点，中午休息或室内
+- 餐饮与补给描述要体现降温、休息、补水
 
-skill 类型：
+适合当前架构：
 
-- `dynamic hard constraint`
+- 已有天气结构化结果，不需要额外接口。
 
-### 4.1.4 `weekend_peak_avoidance`
+### 3.1.4 `weekend_peak_avoidance`
 
 目标：
 
-- 在周末或高峰日期减少拥挤与排队风险
+- 周末或高峰日期时，减少过度拥挤和排队风险。
 
 为什么值得做：
 
-- itinerary 现在缺少“时间维度的拥挤策略”
-- 对热门城市非常有效
+- 现在 itinerary 还缺少“时间维度的拥挤策略”。
+- 对热门城市和一日游尤其有效。
 
 触发：
 
-- 日期落在周五晚、周六、周日
+- `start_date/end_date` 落在周五晚、周六、周日
 - 或 free text 命中：`不想太挤`、`避开人多`
 
 作用：
 
-- `AttractionAgent` 降低热门打卡点默认权重
-- `PlanningAgent` 加入错峰顺序、预约提醒、避峰时段
-- validator 检查是否仍把多个热门点堆在同一高峰时段
+- `AttractionAgent` 降低“热门景点”默认权重
+- `PlanningAgent` 提示避峰时段、提前预约、错峰顺序
+- 路线尽量减少跨城热门区的高峰移动
 
-skill 类型：
+适合当前架构：
 
-- `dynamic hard constraint`
+- 仅依赖日期推断，不需要联网。
 
 
-## 4.2 P1：第二批建议做
+## 3.2 P1：第二批建议做
 
-### 4.2.1 `transit_first`
+这些 skill 更偏差异化和风格优化。
+
+### 3.2.1 `transit_first`
 
 目标：
 
-- 让公共交通成为真实约束，而不只是文本偏好
+- 当用户选择公共交通时，把路线衔接性做实。
 
 触发：
 
@@ -257,19 +174,19 @@ skill 类型：
 
 作用：
 
-- `AttractionAgent` 倾向公共交通可达区域
+- `AttractionAgent` 倾向地铁/公交可达区域
 - `HotelAgent` 提高交通枢纽附近酒店权重
-- `PlanningAgent` 减少跨区移动，细化换乘说明
+- `PlanningAgent` 避免单日跨区过多，交通说明更具体
 
-skill 类型：
+为什么推荐：
 
-- `style/preference`，但优先级较高
+- 当前交通方式字段已经存在，但更多只是文本回填，没有变成真正的调度约束。
 
-### 4.2.2 `drive_friendly`
+### 3.2.2 `drive_friendly`
 
 目标：
 
-- 让自驾场景拥有不同的路线风格
+- 当用户自驾时，优先考虑停车、路线串联和非核心商圈点位。
 
 触发：
 
@@ -277,19 +194,19 @@ skill 类型：
 
 作用：
 
-- `AttractionAgent` 接受稍远但串联性好的景点
-- `HotelAgent` 倾向停车便利
-- `PlanningAgent` 说明停车与跨区顺序
+- `AttractionAgent` 更接受稍远景点
+- `HotelAgent` 倾向停车便利、进出城便利
+- `PlanningAgent` 描述停车与跨区顺序
 
-skill 类型：
+为什么推荐：
 
-- `style/preference`
+- 与 `transit_first` 成对，能让交通方式真正控制 itinerary 风格。
 
-### 4.2.3 `checkin_spots`
+### 3.2.3 `checkin_spots`
 
 目标：
 
-- 满足经典打卡和拍照导向用户
+- 满足“经典打卡”用户，强调地标、拍照、路线顺滑。
 
 触发：
 
@@ -298,18 +215,18 @@ skill 类型：
 
 作用：
 
-- `AttractionAgent` 提高地标景点权重
-- `PlanningAgent` 增加最佳时段、拍照停留说明
+- `AttractionAgent` 提高地标类景点得分
+- `PlanningAgent` 描述增加拍照时间、最佳时段、路线顺序
 
-skill 类型：
+为什么推荐：
 
-- `style/preference`
+- 前端已有 `checkin` 风格选项，命中路径清晰。
 
-### 4.2.4 `local_immersion`
+### 3.2.4 `local_immersion`
 
 目标：
 
-- 更充分利用现有 RAG 和本地知识库
+- 真正体现“本地体验”，而不是只是少去游客点。
 
 触发：
 
@@ -318,19 +235,19 @@ skill 类型：
 
 作用：
 
-- `PlanningAgent` 优先利用本地知识片段
-- 餐饮、街区、步行段更偏在地感
-- `AttractionAgent` 可降低标准热门点权重
+- `PlanningAgent` 优先使用 RAG 本地知识片段
+- 减少过度标准化景点描述
+- 餐饮、步行段、休息点更偏街区感和在地感
 
-skill 类型：
+为什么推荐：
 
-- `style/preference`
+- 你们已经有知识库和 recommendation reasons，这个 skill 非常适合和 RAG 做联动。
 
-### 4.2.5 `couple_romantic`
+### 3.2.5 `couple_romantic`
 
 目标：
 
-- 把情侣行程和家庭行程明显区分
+- 让情侣出行和家庭出行明显区分。
 
 触发：
 
@@ -338,14 +255,15 @@ skill 类型：
 
 作用：
 
-- `PlanningAgent` 更偏夜景、傍晚、氛围餐饮、轻松节奏
+- `PlanningAgent` 更重视傍晚、夜景、轻松节奏、餐饮氛围
+- 酒店和景点说明偏氛围感
 
-skill 类型：
+为什么推荐：
 
-- `style/preference`
+- 前端已有 `couple` 选项，触发稳定。
 
 
-## 4.3 第二版最推荐的 6 个 skill
+## 4. 第二版最推荐的 6 个 skill
 
 如果第二版只做一轮，我建议选这 6 个：
 
@@ -358,246 +276,165 @@ skill 类型：
 
 原因：
 
-- 覆盖预算、饮食、天气、日期、交通、RAG 六个关键维度
-- 都能映射到现有字段和现有服务结果
-- 不需要新增前端表单
-- 能明显拉开与第一版 skill 的边界
+- 覆盖预算、饮食、天气、日期、交通、RAG 利用率六个核心维度。
+- 都能映射到现有输入字段或现有服务结果。
+- 不依赖新增前端表单。
+- 能明显拉开和第一版 skill 的能力边界。
 
 
-## 5. 第二版执行流程
+## 5. 第二版架构建议
 
-第二版建议把 skill 生命周期固定成下面这条链路。
+第二版建议在当前 skill 架构上做 4 个增强。
 
-### 5.1 Phase A：Static Selection
+### 5.1 Skill 分层
 
-输入：
+把 skill 分成两层：
 
-- `TripRequest`
-- `profile_context`
-- `memory_context`
-- `rag_context`
+- `static skills`
+  - 来自请求字段和用户主动输入
+  - 例如 `food_explorer`、`couple_romantic`
+- `dynamic skills`
+  - 来自运行时结果
+  - 例如 `heat_avoidance`、`weekend_peak_avoidance`
 
-输出：
+建议流程：
 
-- 第一批 `static skills`
+1. 先在 `/trip/plan` 入口做 static selection
+2. `WeatherAgent` 返回后做 dynamic augmentation
+3. 最终把合并后的 skills 传给 `PlanningAgent`
 
-候选：
+这样可以避免天气类 skill 在规划前缺少真实依据。
 
-- `budget_guard`
-- `dietary_safe`
-- `transit_first`
-- `drive_friendly`
-- `checkin_spots`
-- `local_immersion`
-- `couple_romantic`
+### 5.2 Skill 规则分级
 
-### 5.2 Phase B：Sub-Agent Execution
+第一版的 `planning_rules` 还是一个扁平列表。
 
-执行：
-
-- `AttractionAgent`
-- `WeatherAgent`
-- `HotelAgent`
-
-此阶段读取 `static skills`
-
-### 5.3 Phase C：Dynamic Augmentation
-
-基于运行时结果补 dynamic skills：
-
-- `rainy_day`
-- `heat_avoidance`
-- `weekend_peak_avoidance`
-
-这一步建议是追加，不是重选整套 skill。
-
-### 5.4 Phase D：Merge And Resolve
-
-合并 static/dynamic skills 后：
-
-1. 去重
-2. 冲突处理
-3. 应用数量上限
-4. 得到最终 `final skills`
-
-### 5.5 Phase E：Planning
-
-`PlanningAgent` 接收：
-
-- final skills
-- hard rules
-- soft rules
-- meal rules
-- routing rules
-
-### 5.6 Phase F：Post Validation
-
-规划结果出来后执行：
-
-- `PlanConstraintValidator`
-
-结果：
-
-- pass
-- pass with warnings
-- repair needed
-
-
-## 6. skill 数量上限设计
-
-第二版建议把 skill 限制写成正式规则。
-
-### 6.1 上限规则
-
-- `hard constraints` 最多 3 个
-- `dynamic skills` 最多 2 个
-- `style skills` 最多 2 个
-- 总上限 4 个
-
-### 6.2 选择优先级
-
-建议保留顺序：
-
-1. `hard constraints`
-2. 高分 `dynamic skills`
-3. 高分 `style skills`
-
-### 6.3 裁剪示例
-
-如果用户同时命中：
-
-- `budget_guard`
-- `dietary_safe`
-- `heat_avoidance`
-- `weekend_peak_avoidance`
-- `transit_first`
-- `local_immersion`
-
-最终可能保留：
-
-- `budget_guard`
-- `dietary_safe`
-- `heat_avoidance`
-- `transit_first`
-
-被裁掉的原因应该记录在日志或 evidence 中。
-
-
-## 7. hard constraints 后置校验闭环
-
-这是第二版必须新增的系统能力。
-
-## 7.1 设计目标
-
-把 hard constraint 从“prompt 约束”升级成“系统约束”。
-
-## 7.2 建议新增模块
-
-- `backend/app/services/plan_constraint_validator.py`
-
-## 7.3 校验输入
-
-- `TripRequest`
-- final selected skills
-- `TripPlan`
-- 天气与结构化结果
-
-## 7.4 校验输出
-
-```python
-class ValidationIssue(BaseModel):
-    code: str
-    severity: str
-    message: str
-    day_index: int | None = None
-    repair_hint: str = ""
-
-
-class ValidationResult(BaseModel):
-    passed: bool
-    warnings: list[ValidationIssue]
-    errors: list[ValidationIssue]
-```
-
-## 7.5 第一批校验规则
-
-### `budget_guard`
-
-检查：
-
-- 总预算是否明显超出目标档位
-- 单日门票/酒店/餐饮是否异常偏高
-
-### `dietary_safe`
-
-检查：
-
-- 三餐描述是否体现饮食限制
-- 是否出现明显冲突食物
-
-### `heat_avoidance`
-
-检查：
-
-- 高温日是否仍大量安排正午户外高强度景点
-
-### `rainy_day`
-
-检查：
-
-- 雨天是否仍以户外长时间暴露景点为主
-
-### `low_mobility`
-
-检查：
-
-- 单日景点数是否过多
-- 是否缺少休息和低强度交通说明
-
-## 7.6 修补策略
-
-建议两级修补：
-
-### 轻微违规
-
-- 直接局部修补字段
-- 如修改 meal 描述、补充 warning、降低预算说明
-
-### 严重违规
-
-- 执行一次 `repair_prompt`
-- 或调用 fallback rebuild 部分天计划
-
-目标不是做复杂反思，而是保证系统稳定可控。
-
-
-## 8. skill 数据模型增强建议
-
-第二版建议把 skill 从第一版的扁平规则升级成分层规则。
+第二版建议拆成：
 
 ```python
 class SkillDefinition(BaseModel):
-    key: str
-    name: str
-    description: str = ""
-    priority: int = 100
-    layer: str = "static"  # static / dynamic
-    category: str = "style"  # hard / dynamic-hard / style
-    enabled: bool = True
-    incompatible_with: list[str] = Field(default_factory=list)
-    suppresses: list[str] = Field(default_factory=list)
-    required_any_tags: list[str] = Field(default_factory=list)
-    required_any_keywords: list[str] = Field(default_factory=list)
+    ...
     hard_rules: list[str] = Field(default_factory=list)
     soft_rules: list[str] = Field(default_factory=list)
     attraction_query_boosts: list[str] = Field(default_factory=list)
     hotel_query_boosts: list[str] = Field(default_factory=list)
     meal_rules: list[str] = Field(default_factory=list)
     routing_rules: list[str] = Field(default_factory=list)
-    output_hints: list[str] = Field(default_factory=list)
 ```
 
-建议把 `SelectedSkill` 升级成：
+原因：
+
+- `dietary_safe`、`budget_guard` 这种显然是硬约束
+- `local_immersion`、`checkin_spots` 更像软偏好
+
+### 5.3 Skill 冲突策略
+
+第二版 skill 增多后，冲突会明显出现。
+
+建议加两个字段：
+
+```python
+incompatible_with: list[str]
+suppresses: list[str]
+```
+
+示例：
+
+- `budget_guard` 可压制过于昂贵的 `couple_romantic` 酒店倾向
+- `dietary_safe` 优先于 `food_explorer`
+- `weekend_peak_avoidance` 可弱化 `checkin_spots`
+
+### 5.4 Skill 证据输出
+
+第二版建议给每个 skill 返回更清晰的命中证据：
+
+```python
+class SelectedSkill(BaseModel):
+    ...
+    source: str = ""
+    matched_fields: list[str] = Field(default_factory=list)
+    matched_terms: list[str] = Field(default_factory=list)
+```
+
+这样前端以后可以展示：
+
+- 为什么命中了这个 skill
+- 它主要影响了什么
+
+
+## 6. 第二版与各 Agent 的接入建议
+
+## 6.1 AttractionAgent
+
+第二版不只是 query boost，还应该增加：
+
+- `must_include_tags`
+- `must_avoid_tags`
+- `score_multipliers`
+
+示例：
+
+- `budget_guard`：降低高票价景点
+- `weekend_peak_avoidance`：降低热门/网红点
+- `heat_avoidance`：提高室内景点
+
+## 6.2 HotelAgent
+
+第二版要把酒店从“按住宿类型查”升级为“按约束排序”。
+
+重点让 skill 影响：
+
+- 交通便利性
+- 家庭/情侣适配度
+- 预算层级
+- 是否适合休息恢复
+
+## 6.3 PlanningAgent
+
+第二版仍然是 skill 的核心落点。
+
+建议 prompt 中增加两块：
+
+1. `hard_constraints`
+2. `style_preferences`
+
+示例：
+
+```json
+{
+  "skills": [
+    {
+      "key": "dietary_safe",
+      "hard_rules": [
+        "所有餐饮建议必须符合饮食限制"
+      ],
+      "soft_rules": []
+    }
+  ]
+}
+```
+
+同时建议让 planner 输出时显式体现：
+
+- 哪些安排受到了 skill 影响
+- 为什么这样安排
+
+## 6.4 WeatherAgent
+
+第一版里天气 skill 主要是外部静态命中。
+
+第二版建议让 `WeatherAgent` 参与二次触发：
+
+- `rainy_day`
+- `heat_avoidance`
+- `wind_sensitive`
+
+这一步不需要它直接选择 skill，只需要产出足够明确的结构化 signal。
+
+
+## 7. 第二版数据模型建议
+
+建议把当前 `SelectedSkill` 升级成：
 
 ```python
 class SelectedSkill(BaseModel):
@@ -606,8 +443,6 @@ class SelectedSkill(BaseModel):
     description: str = ""
     score: float = 0.0
     priority: int = 100
-    layer: str = ""
-    category: str = ""
     source: str = ""
     matched_fields: list[str] = Field(default_factory=list)
     matched_terms: list[str] = Field(default_factory=list)
@@ -620,158 +455,95 @@ class SelectedSkill(BaseModel):
     output_hints: list[str] = Field(default_factory=list)
 ```
 
-
-## 9. 与各 Agent 的接入建议
-
-## 9.1 AttractionAgent
-
-第二版不只是 query boost，还建议增加：
-
-- `must_include_tags`
-- `must_avoid_tags`
-- `score_multipliers`
-
-典型映射：
-
-- `budget_guard`：降低高票价景点
-- `weekend_peak_avoidance`：降低热门打卡点
-- `heat_avoidance`：提高室内景点
-
-## 9.2 HotelAgent
-
-第二版重点让酒店排序真正受约束影响：
-
-- 预算层级
-- 交通便利性
-- 家庭或情侣适配度
-- 是否适合休息恢复
-
-## 9.3 PlanningAgent
-
-第二版建议 prompt 明确拆成：
-
-- `hard_constraints`
-- `style_preferences`
-- `meal_rules`
-- `routing_rules`
-
-planner 输出阶段也应尽量体现：
-
-- 哪些安排受到了 skill 影响
-- 为什么这样安排
-
-## 9.4 WeatherAgent
-
-第二版建议让天气参与二次触发，而不是单纯提供 summary。
-
-重点支持：
-
-- `rainy_day`
-- `heat_avoidance`
-- 未来可扩展 `wind_sensitive`
+这比第一版更适合扩展，但仍然保持轻量。
 
 
-## 10. 冲突处理建议
+## 8. 第二版开发顺序建议
 
-第二版 skill 增多后，冲突一定会出现。
+建议按这个顺序做，而不是同时铺太多。
 
-建议规则：
+### 阶段 A：增强框架
 
-- `dietary_safe` 优先于 `food_explorer`
-- `budget_guard` 可以压制昂贵导向的浪漫或高消费倾向
-- `weekend_peak_avoidance` 可以弱化 `checkin_spots`
-- `heat_avoidance` 与 `rainy_day` 可共存，但都属于高优先动态约束
+1. skill 分层：static/dynamic
+2. hard/soft rules 拆分
+3. 冲突处理
+4. skill evidence 输出
 
-推荐实现：
-
-1. 按优先级排序
-2. 应用 `suppresses`
-3. 应用 `incompatible_with`
-4. 再执行数量裁剪
-
-
-## 11. 开发顺序建议
-
-建议按下面顺序推进，而不是同时铺太多。
-
-### 阶段 A：框架升级
-
-1. `static/dynamic` 固定顺序
-2. `hard/soft rules` 拆分
-3. skill 数量上限
-4. 冲突处理
-5. skill evidence 输出
-6. `PlanConstraintValidator`
-
-### 阶段 B：首批高价值约束 skill
+### 阶段 B：上 3 个高价值约束 skill
 
 1. `budget_guard`
 2. `dietary_safe`
 3. `heat_avoidance`
 
-### 阶段 C：第二批动态与风格 skill
+### 阶段 C：上 3 个风格与路径 skill
 
 1. `weekend_peak_avoidance`
 2. `transit_first`
 3. `local_immersion`
 
-这样第二版升级的是“系统能力”，不是单纯“skill 数量”。
+这样能保证第二版不是“skill 数量变多”，而是“能力结构升级”。
 
 
-## 12. 测试建议
+## 9. 测试建议
 
-第二版要重点补下面几类测试。
+第二版要重点补这几类测试。
 
-### 12.1 阶段顺序测试
+### 9.1 冲突测试
 
-验证：
-
-- `static skills` 一定先于 `dynamic skills`
-- `dynamic augmentation` 不会覆盖掉更高优先级的 hard constraints
-
-### 12.2 数量上限测试
-
-验证：
-
-- 总 skill 数不会超过上限
-- hard constraints 优先保留
-- style skills 被裁剪时有明确 evidence
-
-### 12.3 冲突测试
-
-验证：
+例如：
 
 - `food_explorer + dietary_safe`
 - `checkin_spots + weekend_peak_avoidance`
 - `budget_guard + couple_romantic`
 
-### 12.4 validator 测试
+### 9.2 动态触发测试
 
-验证：
+例如：
 
-- `budget_guard` 是否真的校验超标
-- `dietary_safe` 是否真的校验 meal 文案
-- `heat_avoidance` 是否真的校验高温正午安排
+- 天气高温时自动命中 `heat_avoidance`
+- 周末日期时自动命中 `weekend_peak_avoidance`
 
-### 12.5 前端可解释性测试
+### 9.3 Agent 行为测试
 
-验证：
+例如：
 
-- `applied_skills` 是否包含来源、命中字段、命中词
-- 前端是否能稳定展示最终 skill 与影响说明
+- `budget_guard` 是否真的降低高成本输出
+- `dietary_safe` 是否真的影响三餐文案
+- `transit_first` 是否真的减少跨区移动
+
+### 9.4 前端可解释性测试
+
+例如：
+
+- 响应里的 `applied_skills` 是否包含证据字段
+- 结果页是否能稳定展示 skill 来源和作用
 
 
-## 13. 最终建议
+## 10. 第二版的边界
 
-如果给第二版一个总方向，我的建议是：
+第二版依然不建议做这些：
 
-“从偏好型 skill，升级到受控执行的约束型 + 动态型 skill 系统”
+- skill 自己直接发起独立工具调用
+- skill 链式多轮自治决策
+- skill marketplace
+- 基于 LLM 的黑盒 skill selector
+
+原因很简单：
+
+- 当前项目的成功点在于结构简单、行为可控
+- 第二版的重点应该是约束质量和解释能力，而不是把系统做重
+
+
+## 11. 最终建议
+
+如果只给第二版一个总方向，我的建议是：
+
+“从偏好型 skill，升级到约束型 + 动态型 skill”
 
 具体落地上：
 
-- 保留并优先实现 `budget_guard`、`dietary_safe`、`heat_avoidance`、`weekend_peak_avoidance`、`transit_first`、`local_immersion`
-- 把 `static/dynamic` 执行顺序写死
-- 对 skill 数量设置分层上限
-- 给 `hard constraints` 加后置校验闭环
+- 先补 `budget_guard`、`dietary_safe`、`heat_avoidance`
+- 再补 `weekend_peak_avoidance`、`transit_first`、`local_immersion`
+- 同时升级 skill 数据结构，加入 hard/soft rules 和证据字段
 
-这样第二版会比第一版更稳定、更可解释，也更接近一个真正可持续扩展的 skill 系统。
+这样第二版会明显比第一版更像一个真正可持续扩展的 skill 系统，而不是几个 prompt tag 的集合。

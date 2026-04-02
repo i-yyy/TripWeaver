@@ -1,4 +1,4 @@
-"""Post-plan validation and lightweight repair for hard skill constraints."""
+﻿"""Post-plan validation and lightweight repair for hard skill constraints."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ class PlanConstraintValidator:
             return trip_plan, []
 
         issues: List[ValidationIssue] = []
-        joined = "、".join(restrictions)
+        joined = " / ".join(restrictions)
         updated_days: List[DayPlan] = []
 
         for day in trip_plan.days:
@@ -67,9 +67,9 @@ class PlanConstraintValidator:
                 description = (meal.description or "").strip()
                 if joined and joined not in description:
                     description = (
-                        f"{description} 本餐建议已按{joined}要求做兼容安排。".strip()
+                        f"{description} \u672c\u9910\u5efa\u8bae\u5df2\u6309{joined}\u8981\u6c42\u505a\u517c\u5bb9\u5b89\u6392\u3002".strip()
                         if description
-                        else f"本餐建议已按{joined}要求做兼容安排。"
+                        else f"\u672c\u9910\u5efa\u8bae\u5df2\u6309{joined}\u8981\u6c42\u505a\u517c\u5bb9\u5b89\u6392\u3002"
                     )
                     touched = True
                 meals.append(meal.model_copy(update={"description": description}))
@@ -79,12 +79,22 @@ class PlanConstraintValidator:
                     ValidationIssue(
                         code="dietary_safe_repaired",
                         severity="warning",
-                        message=f"第 {day.day_index + 1} 天餐饮说明已补充饮食限制兼容说明。",
+                        message=f"\u7b2c {day.day_index + 1} \u5929\u9910\u996e\u8bf4\u660e\u5df2\u8865\u5145\u996e\u98df\u9650\u5236\u517c\u5bb9\u8bf4\u660e\u3002",
                         day_index=day.day_index,
-                        repair_hint="在餐饮文案中补充饮食限制说明。",
+                        repair_hint="\u5728\u9910\u996e\u6587\u6848\u4e2d\u8865\u5145\u996e\u98df\u9650\u5236\u8bf4\u660e\u3002",
                     )
                 )
             updated_days.append(day.model_copy(update={"meals": meals}))
+
+        if not issues:
+            issues.append(
+                ValidationIssue(
+                    code="dietary_safe_checked",
+                    severity="warning",
+                    message="\u5df2\u6821\u9a8c\u9910\u996e\u4e0e\u996e\u98df\u9650\u5236\u7684\u4e00\u81f4\u6027\u3002",
+                    repair_hint="\u9910\u996e\u8bf4\u660e\u9700\u6301\u7eed\u4fdd\u6301\u996e\u98df\u9650\u5236\u517c\u5bb9\u3002",
+                )
+            )
 
         return trip_plan.model_copy(update={"days": updated_days}), issues
 
@@ -106,8 +116,8 @@ class PlanConstraintValidator:
                 ValidationIssue(
                     code="budget_guard_over_budget",
                     severity="warning",
-                    message=f"当前预算估算约为 {budget.total}，高于目标预算上限 {cap}。",
-                    repair_hint="适当降低酒店、餐饮或交通成本。",
+                    message=f"\u5f53\u524d\u9884\u7b97\u4f30\u7b97\u7ea6\u4e3a {budget.total}\uff0c\u9ad8\u4e8e\u76ee\u6807\u9884\u7b97\u4e0a\u9650 {cap}\u3002",
+                    repair_hint="\u9002\u5f53\u964d\u4f4e\u9152\u5e97\u3001\u9910\u996e\u6216\u4ea4\u901a\u6210\u672c\u3002",
                 )
             )
         if budget.total > int(cap * 1.4):
@@ -115,14 +125,14 @@ class PlanConstraintValidator:
                 ValidationIssue(
                     code="budget_guard_excessive",
                     severity="error",
-                    message=f"当前预算估算约为 {budget.total}，明显超出目标预算上限 {cap}。",
-                    repair_hint="需要重新压缩成本较高的安排。",
+                    message=f"\u5f53\u524d\u9884\u7b97\u4f30\u7b97\u7ea6\u4e3a {budget.total}\uff0c\u660e\u663e\u8d85\u51fa\u76ee\u6807\u9884\u7b97\u4e0a\u9650 {cap}\u3002",
+                    repair_hint="\u9700\u8981\u91cd\u65b0\u538b\u7f29\u6210\u672c\u8f83\u9ad8\u7684\u5b89\u6392\u3002",
                 )
             )
 
         suggestions = trip_plan.overall_suggestions
-        if warnings and "预算" not in suggestions:
-            suggestions = f"{suggestions} 当前方案需关注预算控制。".strip()
+        if warnings and "\u9884\u7b97" not in suggestions:
+            suggestions = f"{suggestions} \u5f53\u524d\u65b9\u6848\u9700\u5173\u6ce8\u9884\u7b97\u63a7\u5236\u3002".strip()
 
         return trip_plan.model_copy(update={"budget": budget, "overall_suggestions": suggestions}), warnings, errors
 
@@ -139,16 +149,16 @@ class PlanConstraintValidator:
         updated_days: List[DayPlan] = []
         for day in trip_plan.days:
             detail = day.transportation_detail or ""
-            if "中午" not in detail and "室内" not in detail and "休息" not in detail:
-                detail = f"{detail} 中午建议安排室内或休息时段，避开高温暴晒。".strip()
+            if all(token not in detail for token in ("\u4e2d\u5348", "\u5ba4\u5185", "\u4f11\u606f")):
+                detail = f"{detail} \u4e2d\u5348\u5efa\u8bae\u5b89\u6392\u5ba4\u5185\u6216\u4f11\u606f\u65f6\u6bb5\uff0c\u907f\u5f00\u9ad8\u6e29\u66b4\u6652\u3002".strip()
             updated_days.append(day.model_copy(update={"transportation_detail": detail}))
 
         issues.append(
             ValidationIssue(
                 code="heat_avoidance_repaired",
                 severity="warning",
-                message="已根据高温天气补充避晒与休息说明。",
-                repair_hint="增加午间室内或休息安排。",
+                message="\u5df2\u6839\u636e\u9ad8\u6e29\u5929\u6c14\u8865\u5145\u907f\u6652\u4e0e\u4f11\u606f\u8bf4\u660e\u3002",
+                repair_hint="\u589e\u52a0\u5348\u95f4\u5ba4\u5185\u6216\u4f11\u606f\u5b89\u6392\u3002",
             )
         )
 
@@ -162,40 +172,40 @@ class PlanConstraintValidator:
         weather_text = " ".join(
             [weather_result.summary, *weather_result.suggestions, *[item.day_weather for item in weather_result.weather_info]]
         ).lower()
-        if "雨" not in weather_text and "rain" not in weather_text:
+        if "\u96e8" not in weather_text and "rain" not in weather_text:
             return trip_plan, []
 
-        if "雨天" in trip_plan.overall_suggestions or "室内" in trip_plan.overall_suggestions:
+        if "\u96e8\u5929" in trip_plan.overall_suggestions or "\u5ba4\u5185" in trip_plan.overall_suggestions:
             return trip_plan, []
 
         issue = ValidationIssue(
             code="rainy_day_repaired",
             severity="warning",
-            message="已在整体建议中补充雨天执行提示。",
-            repair_hint="增加雨天室内备选和避雨说明。",
+            message="\u5df2\u5728\u6574\u4f53\u5efa\u8bae\u4e2d\u8865\u5145\u96e8\u5929\u6267\u884c\u63d0\u793a\u3002",
+            repair_hint="\u589e\u52a0\u96e8\u5929\u5ba4\u5185\u5907\u9009\u548c\u907f\u96e8\u8bf4\u660e\u3002",
         )
         return (
             trip_plan.model_copy(
                 update={
-                    "overall_suggestions": f"{trip_plan.overall_suggestions} 如遇下雨，优先采用室内备选并减少长距离户外移动。".strip()
+                    "overall_suggestions": f"{trip_plan.overall_suggestions} \u5982\u9047\u4e0b\u96e8\uff0c\u4f18\u5148\u91c7\u7528\u5ba4\u5185\u5907\u9009\u5e76\u51cf\u5c11\u957f\u8ddd\u79bb\u6237\u5916\u79fb\u52a8\u3002".strip()
                 }
             ),
             [issue],
         )
 
     def _repair_weekend_peak_avoidance(self, trip_plan: TripPlan) -> Tuple[TripPlan, List[ValidationIssue]]:
-        if any(token in trip_plan.overall_suggestions for token in ("错峰", "预约", "高峰")):
+        if "\u9519\u5cf0" in trip_plan.overall_suggestions or "\u9884\u7ea6" in trip_plan.overall_suggestions:
             return trip_plan, []
         issue = ValidationIssue(
             code="weekend_peak_avoidance_repaired",
             severity="warning",
-            message="已补充周末避峰提示。",
-            repair_hint="增加预约和错峰说明。",
+            message="\u5df2\u8865\u5145\u5468\u672b\u9519\u5cf0\u4e0e\u9884\u7ea6\u63d0\u793a\u3002",
+            repair_hint="\u5728\u70ed\u95e8\u666f\u70b9\u524d\u52a0\u5165\u9884\u7ea6\u6216\u9519\u5cf0\u63d0\u793a\u3002",
         )
         return (
             trip_plan.model_copy(
                 update={
-                    "overall_suggestions": f"{trip_plan.overall_suggestions} 周末建议提前预约热门点，并尽量错峰出发。".strip()
+                    "overall_suggestions": f"{trip_plan.overall_suggestions} \u5468\u672b\u5efa\u8bae\u5c3d\u91cf\u9519\u5cf0\u51fa\u53d1\uff0c\u5fc5\u8981\u65f6\u63d0\u524d\u9884\u7ea6\u70ed\u95e8\u70b9\u4f4d\u3002".strip()
                 }
             ),
             [issue],
@@ -205,56 +215,49 @@ class PlanConstraintValidator:
         issues: List[ValidationIssue] = []
         updated_days: List[DayPlan] = []
         for day in trip_plan.days:
+            attractions = list(day.attractions)
             detail = day.transportation_detail or ""
-            attractions = day.attractions
+            changed = False
             if len(attractions) > 2:
                 attractions = attractions[:2]
-                issues.append(
-                    ValidationIssue(
-                        code="low_mobility_trimmed",
-                        severity="warning",
-                        message=f"第 {day.day_index + 1} 天景点数量已收敛到 2 个以内。",
-                        day_index=day.day_index,
-                        repair_hint="控制单日景点数量。",
-                    )
-                )
-            if "休息" not in detail and "少走" not in detail:
-                detail = f"{detail} 当天建议保留休息点，尽量减少连续步行。".strip()
+                changed = True
+            if all(token not in detail for token in ("\u4f11\u606f", "\u5c11\u8d70\u8def", "\u65e0\u969c\u788d")):
+                detail = f"{detail} \u5f53\u5929\u5efa\u8bae\u63a7\u5236\u6b65\u884c\u5f3a\u5ea6\uff0c\u9002\u5f53\u9884\u7559\u4f11\u606f\u70b9\u3002".strip()
+                changed = True
+            updated_days.append(day.model_copy(update={"attractions": attractions, "transportation_detail": detail}))
+            if changed:
                 issues.append(
                     ValidationIssue(
                         code="low_mobility_repaired",
                         severity="warning",
-                        message=f"第 {day.day_index + 1} 天已补充低步行负担说明。",
+                        message=f"\u7b2c {day.day_index + 1} \u5929\u5df2\u6309\u4f4e\u6b65\u884c\u8d1f\u62c5\u8981\u6c42\u6536\u7f29\u884c\u7a0b\u3002",
                         day_index=day.day_index,
-                        repair_hint="增加休息点和低强度交通说明。",
+                        repair_hint="\u51cf\u5c11\u5355\u65e5\u666f\u70b9\u4e2a\u6570\u5e76\u8865\u5145\u4f11\u606f\u63d0\u793a\u3002",
                     )
                 )
-            updated_days.append(day.model_copy(update={"attractions": attractions, "transportation_detail": detail}))
 
         return trip_plan.model_copy(update={"days": updated_days}), issues
 
     @staticmethod
     def _restriction_label(token: str) -> str:
         mapping = {
-            "vegetarian": "素食",
-            "halal": "清真",
-            "no_spicy": "少辣或不辣",
+            "vegetarian": "\u7d20\u98df",
+            "halal": "\u6e05\u771f",
+            "no_spicy": "\u5c11\u8fa3\u6216\u4e0d\u8fa3",
         }
         return mapping.get(token, token)
 
     @staticmethod
     def _rebuild_budget(trip_plan: TripPlan) -> Budget:
+        total_attractions = 0
         total_hotels = 0
         total_meals = 0
         total_transportation = 0
-        total_attractions = 0
         for day in trip_plan.days:
-            total_transportation += int(day.transportation_cost or 0)
-            if day.hotel:
-                total_hotels += int(day.hotel.estimated_cost or 0)
             total_attractions += sum(int(item.ticket_price or 0) for item in day.attractions)
+            total_hotels += int(day.hotel.estimated_cost or 0) if day.hotel else 0
             total_meals += sum(int(item.estimated_cost or 0) for item in day.meals)
-
+            total_transportation += int(day.transportation_cost or 0)
         return Budget(
             total_attractions=total_attractions,
             total_hotels=total_hotels,
