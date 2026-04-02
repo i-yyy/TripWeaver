@@ -58,6 +58,22 @@ export interface RecommendationReason {
   metadata?: Record<string, unknown>
 }
 
+export interface AppliedSkill {
+  key: string
+  name: string
+  description?: string
+  score?: number
+  priority?: number
+  layer?: string
+  category?: string
+  source?: string
+  matched_fields?: string[]
+  matched_terms?: string[]
+  reasons?: string[]
+  hard_rules?: string[]
+  soft_rules?: string[]
+}
+
 export interface DayPlan {
   date: string
   day_index: number
@@ -141,6 +157,7 @@ export interface TripPlan {
   overall_suggestions: string
   budget?: Budget
   recommendation_reasons?: RecommendationReason[]
+  applied_skills?: AppliedSkill[]
 }
 
 export interface TripFormData {

@@ -43,6 +43,14 @@
               >
                 📌 推荐依据
               </button>
+              <button
+                v-if="appliedSkills.length"
+                type="button"
+                class="result-nav-button"
+                @click="scrollToSection('result-skills')"
+              >
+                🧩 已启用技能
+              </button>
             </div>
           </aside>
 
@@ -346,6 +354,33 @@
             </div>
           </div>
         </section>
+
+        <section
+          id="result-skills"
+          v-if="appliedSkills.length"
+          class="glass-panel glass-panel--soft result-panel"
+        >
+          <div class="section-heading">
+            <h2>🧩 已启用技能</h2>
+            <p>这里展示了本次行程实际生效的技能，以及命中的字段、关键词和触发原因</p>
+          </div>
+          <div class="skill-grid">
+            <div v-for="skill in appliedSkills" :key="skill.key" class="reason-card skill-card">
+              <div class="reason-card__head">
+                <strong>{{ skill.name }}</strong>
+                <div class="toolbar-group">
+                  <a-tag color="blue">{{ skillLayerLabel(skill.layer) }}</a-tag>
+                  <a-tag :color="skillCategoryColor(skill.category)">{{ skillCategoryLabel(skill.category) }}</a-tag>
+                  <a-tag>{{ skillSourceLabel(skill.source) }}</a-tag>
+                </div>
+              </div>
+              <p v-if="skill.description"><strong>说明：</strong>{{ skill.description }}</p>
+              <p v-if="skill.matched_fields?.length"><strong>命中字段：</strong>{{ skill.matched_fields.join('、') }}</p>
+              <p v-if="skill.matched_terms?.length"><strong>命中词：</strong>{{ skill.matched_terms.join('、') }}</p>
+              <p v-if="skill.reasons?.length"><strong>触发原因：</strong>{{ skill.reasons.join('；') }}</p>
+            </div>
+          </div>
+        </section>
           </div>
         </div>
       </template>
@@ -361,6 +396,7 @@ import { message } from 'ant-design-vue'
 import DayRouteMap from '@/components/DayRouteMap.vue'
 import { getDayRouteDetail, submitFeedback } from '@/services/api'
 import type {
+  AppliedSkill,
   Attraction,
   DayPlan,
   DayRouteInfo,
@@ -626,6 +662,7 @@ const compactRecommendationText = (reason: RecommendationReason) => {
 
   return shortText(baseText || '暂无说明')
 }
+const appliedSkills = computed<AppliedSkill[]>(() => tripPlan.value?.applied_skills || [])
 
 onMounted(() => {
   const data = sessionStorage.getItem('tripPlan')
@@ -964,6 +1001,40 @@ const sourceTypeLabel = (sourceType: string) => {
   return mapping[sourceType] || sourceType
 }
 
+const skillLayerLabel = (layer?: string) => {
+  const mapping: Record<string, string> = {
+    static: '静态',
+    dynamic: '动态',
+  }
+  return mapping[String(layer || '').toLowerCase()] || '技能'
+}
+
+const skillCategoryLabel = (category?: string) => {
+  const mapping: Record<string, string> = {
+    hard: '硬约束',
+    'dynamic-hard': '动态约束',
+    style: '偏好',
+  }
+  return mapping[String(category || '').toLowerCase()] || '通用'
+}
+
+const skillCategoryColor = (category?: string) => {
+  const mapping: Record<string, string> = {
+    hard: 'red',
+    'dynamic-hard': 'orange',
+    style: 'green',
+  }
+  return mapping[String(category || '').toLowerCase()] || 'default'
+}
+
+const skillSourceLabel = (source?: string) => {
+  const mapping: Record<string, string> = {
+    static: '静态命中',
+    dynamic: '动态补充',
+  }
+  return mapping[String(source || '').toLowerCase()] || '已命中'
+}
+
 const formatScore = (value: number | undefined) => Number(value || 0).toFixed(3)
 
 const formatDistance = (distance?: number) => {
@@ -1244,7 +1315,8 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
 }
 
 .budget-grid,
-.weather-grid {
+.weather-grid,
+.skill-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
@@ -1253,6 +1325,10 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
 .weather-grid {
   grid-template-columns: repeat(auto-fit, minmax(220px, 280px));
   justify-content: start;
+}
+
+.skill-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
 .budget-total {
@@ -1631,6 +1707,10 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
   color: #0f6676;
   font-size: 16px;
   text-align: center;
+}
+
+.skill-card {
+  margin-bottom: 0;
 }
 
 @media (max-width: 960px) {

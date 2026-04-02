@@ -13,9 +13,10 @@ from hello_agents import SimpleAgent
 
 from ..models.agent_schemas import AgentExecutionStatus, PlanningAgentInput, PlanningAgentOutput
 from ..models.schemas import Attraction, Budget, DayPlan, Hotel, Location, Meal, TripPlan, WeatherInfo
+from ..models.skill_schemas import SelectedSkill, ValidationResult
 from ..services.amap_service import get_amap_service
 from ..services.llm_service import get_llm
-from ..services.unsplash_service import get_unsplash_service
+from ..services.plan_constraint_validator import PlanConstraintValidator, get_plan_constraint_validator
 
 logger = logging.getLogger(__name__)
 
@@ -92,13 +93,18 @@ PLANNER_AGENT_PROMPT = """
 
 
 class PlanningAgent:
-    def __init__(self, planner_runner: Any | None = None) -> None:
+    def __init__(
+        self,
+        planner_runner: Any | None = None,
+        constraint_validator: PlanConstraintValidator | None = None,
+    ) -> None:
         self.tools = ["llm_service"]
         self.planner_runner = planner_runner or SimpleAgent(
             name="planning-agent",
             llm=get_llm(),
             system_prompt=PLANNER_AGENT_PROMPT,
         )
+        self.constraint_validator = constraint_validator or get_plan_constraint_validator()
 
     def list_tools(self) -> List[str]:
         return list(self.tools)
@@ -108,9 +114,16 @@ class PlanningAgent:
         try:
             raw_response = await asyncio.to_thread(self.planner_runner.run, prompt)
             trip_plan = self._parse_response(raw_response, payload)
-            trip_plan = await asyncio.to_thread(self._enrich_trip_plan, trip_plan, payload)
+            trip_plan = await self._safe_enrich_plan(trip_plan, payload)
+            trip_plan, validation = await self._validate_plan(trip_plan, payload)
+            warnings = self._validation_messages(validation)
             return PlanningAgentOutput(
-                status=AgentExecutionStatus(success=True, degraded=False, warnings=[]),
+                status=AgentExecutionStatus(
+                    success=not bool(validation.errors),
+                    degraded=bool(warnings),
+                    warnings=warnings,
+                    error=validation.errors[0].message if validation.errors else None,
+                ),
                 trip_plan=trip_plan,
                 raw_response=str(raw_response),
             )
@@ -118,12 +131,43 @@ class PlanningAgent:
             warning = f"Planning agent fell back to deterministic plan: {exc}"
             logger.warning(warning)
             trip_plan = self.build_fallback_plan(payload)
-            trip_plan = await asyncio.to_thread(self._enrich_trip_plan, trip_plan, payload)
+            trip_plan = await self._safe_enrich_plan(trip_plan, payload)
+            trip_plan, validation = await self._validate_plan(trip_plan, payload)
+            validation_messages = self._validation_messages(validation)
             return PlanningAgentOutput(
-                status=AgentExecutionStatus(success=False, degraded=True, warnings=[warning], error=str(exc)),
+                status=AgentExecutionStatus(
+                    success=False,
+                    degraded=True,
+                    warnings=[warning] + validation_messages,
+                    error=str(exc) if not validation.errors else validation.errors[0].message,
+                ),
                 trip_plan=trip_plan,
                 raw_response=None,
             )
+
+    async def _safe_enrich_plan(self, trip_plan: TripPlan, payload: PlanningAgentInput) -> TripPlan:
+        try:
+            return await asyncio.to_thread(self._enrich_trip_plan, trip_plan, payload)
+        except Exception as exc:  # pragma: no cover - external dependency
+            logger.warning("Trip plan enrichment failed: %s", exc)
+            return trip_plan
+
+    async def _validate_plan(
+        self,
+        trip_plan: TripPlan,
+        payload: PlanningAgentInput,
+    ) -> tuple[TripPlan, ValidationResult]:
+        return await asyncio.to_thread(
+            self.constraint_validator.validate_and_repair,
+            payload.request,
+            payload.skills,
+            trip_plan,
+            payload.weather_result,
+        )
+
+    @staticmethod
+    def _validation_messages(validation: ValidationResult) -> List[str]:
+        return [issue.message for issue in [*validation.warnings, *validation.errors]]
 
     def build_fallback_plan(self, payload: PlanningAgentInput) -> TripPlan:
         request = payload.request
@@ -174,15 +218,18 @@ class PlanningAgent:
             overall_suggestions=overall_suggestions,
             budget=budget,
             recommendation_reasons=payload.recommendation_reasons,
+            applied_skills=payload.skills,
         )
 
     def _build_prompt(self, payload: PlanningAgentInput) -> str:
+        skill_block = self._build_skill_prompt_block(payload.skills)
         structured_context = {
             "trip_request": payload.request.model_dump(),
             "profile_context": payload.profile_context,
             "memory_context": payload.memory_context,
             "rag_context": payload.rag_context,
             "recommendation_reasons": [reason.model_dump() for reason in payload.recommendation_reasons],
+            "skills": [self._skill_prompt_item(skill) for skill in payload.skills],
             "weather": {
                 "summary": payload.weather_result.summary,
                 "suggestions": payload.weather_result.suggestions,
@@ -196,8 +243,48 @@ class PlanningAgent:
         return (
             "请基于以下结构化上下文生成中文旅行计划 JSON。"
             "再次强调：只能输出 JSON，所有说明必须使用简体中文。\n"
-            f"{context_json}"
+            f"{skill_block}{context_json}"
         )
+
+    @staticmethod
+    def _skill_prompt_item(skill: SelectedSkill) -> Dict[str, Any]:
+        return {
+            "key": skill.key,
+            "name": skill.name,
+            "layer": skill.layer,
+            "category": skill.category,
+            "source": skill.source,
+            "matched_fields": list(skill.matched_fields),
+            "matched_terms": list(skill.matched_terms),
+            "reasons": list(skill.reasons),
+            "hard_rules": list(skill.hard_rules),
+            "soft_rules": list(skill.soft_rules),
+            "meal_rules": list(skill.meal_rules),
+            "routing_rules": list(skill.routing_rules),
+            "planning_rules": list(skill.planning_rules),
+            "output_hints": list(skill.output_hints),
+        }
+
+    def _build_skill_prompt_block(self, skills: List[SelectedSkill]) -> str:
+        if not skills:
+            return ""
+
+        lines = ["Enabled skills. Follow hard constraints first, then style preferences:"]
+        for skill in skills:
+            lines.append(f"- {skill.name} ({skill.key}, {skill.layer}, {skill.category})")
+            for rule in skill.hard_rules:
+                lines.append(f"  * hard: {rule}")
+            for rule in skill.soft_rules:
+                lines.append(f"  * soft: {rule}")
+            for rule in skill.meal_rules:
+                lines.append(f"  * meal: {rule}")
+            for rule in skill.routing_rules:
+                lines.append(f"  * routing: {rule}")
+            if not any([skill.hard_rules, skill.soft_rules, skill.meal_rules, skill.routing_rules]):
+                for rule in skill.planning_rules:
+                    lines.append(f"  * rule: {rule}")
+        lines.append("")
+        return "\n".join(lines)
 
     def _parse_response(self, response: Any, payload: PlanningAgentInput) -> TripPlan:
         json_str = self._extract_json(str(response))
@@ -284,6 +371,7 @@ class PlanningAgent:
             "overall_suggestions": overall_suggestions,
             "budget": budget,
             "recommendation_reasons": payload.recommendation_reasons,
+            "applied_skills": payload.skills,
         }
 
     def _normalize_day(
@@ -383,20 +471,16 @@ class PlanningAgent:
         enriched: List[Meal] = []
 
         for meal in meals[:3]:
-            fallback = defaults_by_type.get(meal.type)
+            fallback = defaults_by_type.get(meal.type) or self._build_meal_template(request, meal.type)
             name = meal.name.strip()
-            if not name or name.endswith("recommendation"):
-                name = fallback.name if fallback else f"{request.city}{self._meal_type_label(meal.type)}建议"
+            if self._is_generic_meal_name(name, meal.type):
+                name = fallback.name
 
             description = (meal.description or "").strip()
-            if not description:
-                description = (
-                    fallback.description
-                    if fallback
-                    else f"推荐在{request.city}安排{self._meal_type_label(meal.type)}，既能补充体力，也方便衔接当天行程。"
-                )
+            if not description or self._is_generic_meal_description(description):
+                description = fallback.description
 
-            estimated_cost = meal.estimated_cost or (fallback.estimated_cost if fallback else 0)
+            estimated_cost = meal.estimated_cost or fallback.estimated_cost
             enriched.append(
                 meal.model_copy(
                     update={
@@ -431,31 +515,24 @@ class PlanningAgent:
     def _resolve_attraction_media(
         self,
         amap_service,
-        unsplash_service,
         attraction: Attraction,
         city: str,
     ) -> tuple[Optional[str], List[str]]:
         photos = list(attraction.photos or [])
+        amap_photos: List[str] = []
 
         if attraction.poi_id:
             try:
-                photos = list(dict.fromkeys([*photos, *amap_service.get_poi_photo_urls(attraction.poi_id)]))
+                amap_photos = list(amap_service.get_poi_photo_urls(attraction.poi_id))
+                photos = list(dict.fromkeys([*amap_photos, *photos]))
             except Exception as exc:
                 logger.debug("AMap POI photo lookup failed poi_id=%s error=%s", attraction.poi_id, exc)
 
-        image_url = attraction.image_url or (photos[0] if photos else None)
-
-        if not image_url:
-            search_queries = [
-                f"{attraction.name} {city} 景点",
-                f"{attraction.name} {city} China landmark",
-                f"{attraction.name} {city}",
-                attraction.name,
-            ]
-            for query in search_queries:
-                image_url = unsplash_service.get_photo_url(query)
-                if image_url:
-                    break
+        image_candidates = [*amap_photos]
+        if attraction.image_url:
+            image_candidates.append(attraction.image_url)
+        image_candidates.extend(photos)
+        image_url = next((item for item in image_candidates if item), None)
 
         if image_url:
             photos = list(dict.fromkeys([image_url, *photos]))
@@ -664,24 +741,9 @@ class PlanningAgent:
         budget = request.budget_level or "medium"
         base_cost = {"low": 30, "medium": 60, "high": 120}.get(budget, 60)
         return [
-            Meal(
-                type="breakfast",
-                name="本地特色早餐",
-                description="推荐选择离当天首个景点较近的早餐，吃些本地常见早点，出发方便也能快速补充体力。",
-                estimated_cost=base_cost // 2,
-            ),
-            Meal(
-                type="lunch",
-                name="当地主打午餐",
-                description="午餐建议安排在上午景点和下午景点之间，优先选择本地代表菜或口碑稳定的家常餐厅，节省折返时间。",
-                estimated_cost=base_cost,
-            ),
-            Meal(
-                type="dinner",
-                name="轻松晚餐",
-                description="晚餐建议靠近酒店或晚间活动区域，方便休息返程，同时体验当地风味或更舒适的正餐选择。",
-                estimated_cost=base_cost + 20,
-            ),
+            self._build_meal_template(request, "breakfast", base_cost),
+            self._build_meal_template(request, "lunch", base_cost),
+            self._build_meal_template(request, "dinner", base_cost),
         ]
 
     def _merge_meals(self, current: List[Meal], defaults: List[Meal]) -> List[Meal]:
@@ -691,6 +753,113 @@ class PlanningAgent:
             if meal.type not in existing_types:
                 merged.append(meal)
         return merged[:3]
+
+    def _build_meal_template(self, request, meal_type: str, base_cost: Optional[int] = None) -> Meal:
+        if base_cost is None:
+            budget = request.budget_level or "medium"
+            base_cost = {"low": 30, "medium": 60, "high": 120}.get(budget, 60)
+
+        dietary = {item.lower() for item in getattr(request, "dietary_restrictions", [])}
+        default_name_map = {
+            "breakfast": "包子、鸡蛋和豆浆",
+            "lunch": "热汤面配小炒和米饭",
+            "dinner": "招牌主菜配时蔬和米饭",
+        }
+        default_description_map = {
+            "breakfast": "早餐建议吃包子、鸡蛋和豆浆，出餐快、饱腹稳定，方便上午景点前快速出发。",
+            "lunch": "午餐建议点热汤面、小炒和米饭，吃什么明确，也方便继续下午行程。",
+            "dinner": "晚餐建议吃一份招牌主菜、时蔬和米饭，正餐完整，适合一天结束后好好休息。",
+        }
+
+        if "vegetarian" in dietary:
+            name_map = {
+                "breakfast": "豆浆、素包子和白粥",
+                "lunch": "菌菇面配清炒时蔬和豆腐",
+                "dinner": "素馄饨配杂粮饭和时令蔬菜",
+            }
+            description_map = {
+                "breakfast": "早餐建议吃豆浆、素包子和白粥，口味清爽、出发快，也能兼顾素食限制和上午行程节奏。",
+                "lunch": "午餐建议点菌菇面、清炒时蔬和豆腐，既能吃得具体饱腹，也方便继续下午的游览安排，并符合素食要求。",
+                "dinner": "晚餐建议吃素馄饨、杂粮饭和时令蔬菜，收尾更轻松，也能继续保持素食约束。",
+            }
+        elif "halal" in dietary:
+            name_map = {
+                "breakfast": "牛肉包、鸡蛋和豆浆",
+                "lunch": "清真牛肉面配凉菜",
+                "dinner": "手抓饭配烤羊肉和酸奶",
+            }
+            description_map = {
+                "breakfast": "早餐建议吃牛肉包、鸡蛋和豆浆，出餐快、饱腹感强，也便于满足清真饮食要求。",
+                "lunch": "午餐建议点清真牛肉面和凉菜，吃什么明确，补充体力也快，适合放在上午和下午景点之间。",
+                "dinner": "晚餐建议吃手抓饭、烤羊肉和酸奶，既有完整正餐感，也更容易在收尾时兼顾清真要求和休息节奏。",
+            }
+        elif "no_spicy" in dietary:
+            name_map = {
+                "breakfast": "白粥、鸡蛋和鲜肉包",
+                "lunch": "清汤面配白切鸡和时蔬",
+                "dinner": "清蒸鱼配青菜和米饭",
+            }
+            description_map = {
+                "breakfast": "早餐建议吃白粥、鸡蛋和鲜肉包，口味温和，不刺激，适合早点出发前先稳定补充能量。",
+                "lunch": "午餐建议点清汤面、白切鸡和时蔬，吃得具体又不过辣，便于下午继续活动。",
+                "dinner": "晚餐建议吃清蒸鱼、青菜和米饭，口味清淡、恢复感更强，也符合少辣或不辣的需求。",
+            }
+        else:
+            name_map = default_name_map
+            description_map = default_description_map
+
+        cost_map = {
+            "breakfast": max(12, base_cost // 2),
+            "lunch": base_cost,
+            "dinner": base_cost + 20,
+            "snack": max(10, base_cost // 2),
+        }
+        return Meal(
+            type=meal_type,
+            name=name_map.get(meal_type, default_name_map["lunch"]),
+            description=description_map.get(meal_type, default_description_map["lunch"]),
+            estimated_cost=cost_map.get(meal_type, base_cost),
+        )
+
+    def _is_generic_meal_name(self, name: str, meal_type: str) -> bool:
+        compact = str(name or "").strip().lower()
+        if not compact or compact.endswith("recommendation"):
+            return True
+        generic_tokens = {
+            "早餐",
+            "午餐",
+            "晚餐",
+            "简餐",
+            "素食餐",
+            "轻食",
+            "餐饮建议",
+            "本地特色早餐",
+            "当地主打午餐",
+            "轻松晚餐",
+            "breakfast",
+            "lunch",
+            "dinner",
+        }
+        if compact in generic_tokens:
+            return True
+        return any(token in compact for token in ("简餐", "素食餐", "轻食", "recommendation"))
+
+    @staticmethod
+    def _is_generic_meal_description(description: str) -> bool:
+        compact = str(description or "").strip()
+        if not compact:
+            return True
+        generic_phrases = (
+            "补充体力",
+            "衔接当天行程",
+            "控制用餐时间",
+            "控制预算",
+            "方便出发",
+            "方便衔接",
+            "本地常见",
+        )
+        has_food_separator = any(token in compact for token in ("、", "配", "和"))
+        return any(token in compact for token in generic_phrases) and not has_food_separator
 
     def _meal_type_label(self, meal_type: str) -> str:
         mapping = {
@@ -743,7 +912,6 @@ class PlanningAgent:
 
     def _enrich_trip_plan(self, trip_plan: TripPlan, payload: PlanningAgentInput) -> TripPlan:
         amap_service = get_amap_service()
-        unsplash_service = get_unsplash_service()
 
         enriched_days: List[DayPlan] = []
         for day in trip_plan.days:
@@ -759,14 +927,21 @@ class PlanningAgent:
                 )
 
             attractions: List[Attraction] = []
+            used_image_urls: set[str] = set()
             for index, attraction in enumerate(day.attractions, start=1):
-                image_url, photos = self._resolve_attraction_media(amap_service, unsplash_service, attraction, trip_plan.city)
-                if not image_url:
-                    image_url = unsplash_service.get_photo_url(f"{attraction.name} {trip_plan.city} 景点")
                 map_image_url = attraction.map_image_url or amap_service.build_static_map_url(
                     [attraction.location],
                     labels=[str(index)],
                 )
+                image_url, photos = self._resolve_attraction_media(amap_service, attraction, trip_plan.city)
+                photos = [item for item in photos if item and item not in used_image_urls]
+                if image_url in used_image_urls:
+                    image_url = next((item for item in photos if item not in used_image_urls), None)
+                if not image_url and map_image_url:
+                    image_url = map_image_url
+                    photos = [map_image_url, *photos]
+                if image_url:
+                    used_image_urls.add(image_url)
                 description = self._ensure_chinese_attraction_description(
                     attraction.description,
                     attraction.name,
@@ -785,7 +960,7 @@ class PlanningAgent:
                 )
 
             meals = [
-                meal.model_copy(update={"description": self._ensure_meal_reason(meal.description, meal.name, trip_plan.city)})
+                meal.model_copy(update={"description": self._ensure_meal_reason(meal.description, meal.name, trip_plan.city, payload.request, meal.type)})
                 for meal in day.meals
             ]
 
@@ -878,11 +1053,13 @@ class PlanningAgent:
             "并结合当天客流和天气情况安排拍照、步行和休息节奏。"
         )
 
-    def _ensure_meal_reason(self, description: str | None, name: str, city: str) -> str:
+    def _ensure_meal_reason(self, description: str | None, name: str, city: str, request=None, meal_type: str = "") -> str:
         compact = (description or "").strip()
         if compact and self._looks_like_chinese(compact) and len(compact) >= 18:
             return compact
-        return f"推荐选择{name}，既能体验{city}本地常见风味，也方便衔接当天景点安排，控制用餐时间和预算。"
+        if request is not None:
+            return self._build_meal_template(request, meal_type or "lunch").description
+        return f"推荐选择{name}，既能体验{city}本地风味，也方便衔接当天景点安排。"
 
     def _looks_like_chinese(self, text: str) -> bool:
         if not text:

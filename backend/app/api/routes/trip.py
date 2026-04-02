@@ -13,6 +13,7 @@ from ...services.memory_service import get_memory_service
 from ...services.profile_service import get_profile_service
 from ...services.retriever_service import get_retriever_service
 from ...services.security_service import get_current_user
+from ...services.skill_service import get_skill_service
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ async def plan_trip(
         profile_service = get_profile_service()
         memory_service = get_memory_service()
         retriever_service = get_retriever_service()
+        skill_service = get_skill_service()
         planner = get_trip_planner_agent()
 
         profile_service.update_profile_from_request(request)
@@ -72,6 +74,12 @@ async def plan_trip(
             else RecommendationReason.model_validate(reason)
             for reason in rag_bundle.get("recommendation_reasons", [])
         ]
+        static_skills = skill_service.select_static_skills(
+            request=request,
+            profile_context=profile_context,
+            memory_context=memory_context,
+            rag_context=rag_context,
+        )
 
         trip_plan = await planner.plan_trip(
             request=request,
@@ -79,6 +87,7 @@ async def plan_trip(
             memory_context=memory_context,
             rag_context=rag_context,
             recommendation_reasons=recommendation_reasons,
+            skills=static_skills,
         )
         trip_plan.recommendation_reasons = recommendation_reasons
 

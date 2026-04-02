@@ -7,6 +7,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from .schemas import Attraction, Hotel, RecommendationReason, TripPlan, TripRequest, WeatherInfo
+from .skill_schemas import SelectedSkill
 
 
 class AgentExecutionStatus(BaseModel):
@@ -22,6 +23,7 @@ class SupervisorAgentInput(BaseModel):
     memory_context: str = ""
     rag_context: str = ""
     recommendation_reasons: List[RecommendationReason] = Field(default_factory=list)
+    skills: List[SelectedSkill] = Field(default_factory=list)
 
 
 class AttractionAgentInput(BaseModel):
@@ -29,6 +31,7 @@ class AttractionAgentInput(BaseModel):
     profile_context: str = ""
     rag_context: str = ""
     limit: int = 12
+    skills: List[SelectedSkill] = Field(default_factory=list)
 
 
 class AttractionAgentOutput(BaseModel):
@@ -52,6 +55,7 @@ class HotelAgentInput(BaseModel):
     request: TripRequest
     profile_context: str = ""
     limit: int = 8
+    skills: List[SelectedSkill] = Field(default_factory=list)
 
 
 class HotelAgentOutput(BaseModel):
@@ -66,6 +70,7 @@ class PlanningAgentInput(BaseModel):
     memory_context: str = ""
     rag_context: str = ""
     recommendation_reasons: List[RecommendationReason] = Field(default_factory=list)
+    skills: List[SelectedSkill] = Field(default_factory=list)
     attraction_result: AttractionAgentOutput
     weather_result: WeatherAgentOutput
     hotel_result: HotelAgentOutput
@@ -84,4 +89,3 @@ class SupervisorAgentOutput(BaseModel):
     weather_result: WeatherAgentOutput
     hotel_result: HotelAgentOutput
     planning_result: PlanningAgentOutput
-

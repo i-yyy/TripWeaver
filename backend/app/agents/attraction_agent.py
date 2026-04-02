@@ -9,6 +9,7 @@ from typing import Dict, List, Sequence, Set, Tuple
 
 from ..models.agent_schemas import AgentExecutionStatus, AttractionAgentInput, AttractionAgentOutput
 from ..models.schemas import Attraction, Location, POIInfo
+from ..models.skill_schemas import SelectedSkill
 from ..services.amap_service import AmapService, get_amap_service
 
 logger = logging.getLogger(__name__)
@@ -23,9 +24,9 @@ TAG_QUERY_MAP: Dict[str, List[str]] = {
 }
 
 EXCLUDED_NAME_KEYWORDS = {
-    "售票处",
+    "售票",
     "游客中心",
-    "讲解处",
+    "讲解",
     "停车场",
     "卫生间",
     "文创店",
@@ -39,6 +40,7 @@ EXCLUDED_NAME_KEYWORDS = {
 
 INDOOR_HINTS = {"博物馆", "美术馆", "科技馆", "展览馆", "图书馆", "艺术馆"}
 LOW_WALKING_PENALTIES = {"山", "长城", "徒步", "森林公园", "湿地"}
+FAMILY_FRIENDLY_HINTS = {"科技馆", "动物园", "博物馆", "公园", "海洋馆", "亲子"}
 
 
 class AttractionAgent:
@@ -100,14 +102,16 @@ class AttractionAgent:
                 seen.add(compact)
                 ordered.append(compact)
 
+        for query in self._skill_query_boosts(payload.skills):
+            add(query)
+
         tags = request.preferences + request.travel_style + request.companions
         for tag in tags:
-            mapped_queries = TAG_QUERY_MAP.get(tag.strip().lower(), [])
-            for mapped in mapped_queries:
+            for mapped in TAG_QUERY_MAP.get(tag.strip().lower(), []):
                 add(mapped)
 
         free_text = f"{request.free_text_input} {payload.rag_context}".lower()
-        if any(token in free_text for token in ("rain", "雨", "indoor", "室内")):
+        if any(token in free_text for token in ("rain", "下雨", "雨天", "indoor", "室内")):
             add("室内景点")
             add("博物馆")
 
@@ -118,7 +122,7 @@ class AttractionAgent:
 
         add("景点")
         add("热门景点")
-        return ordered[:5]
+        return ordered[:6]
 
     def _rank_and_convert(self, payload: AttractionAgentInput, pois: Sequence[POIInfo]) -> List[Attraction]:
         request = payload.request
@@ -135,7 +139,7 @@ class AttractionAgent:
             seen.add(dedupe_key)
 
             attraction = self._poi_to_attraction(poi, request.city)
-            score = self._score_poi(request, payload.rag_context, poi)
+            score = self._score_poi(request, payload.rag_context, payload.skills, poi)
             scored.append((score, attraction))
 
         scored.sort(key=lambda item: item[0], reverse=True)
@@ -147,9 +151,10 @@ class AttractionAgent:
             return True
         return any(keyword in name for keyword in EXCLUDED_NAME_KEYWORDS)
 
-    def _score_poi(self, request, rag_context: str, poi: POIInfo) -> float:
+    def _score_poi(self, request, rag_context: str, skills: List[SelectedSkill], poi: POIInfo) -> float:
         text = f"{poi.name} {poi.type} {poi.address}".lower()
         score = 1.0
+        skill_keys = {skill.key for skill in skills}
 
         for tag in request.preferences + request.travel_style:
             mapped_queries = TAG_QUERY_MAP.get(tag.lower(), [])
@@ -161,19 +166,42 @@ class AttractionAgent:
         if any(token in text for token in ("博物馆", "美术馆", "科技馆", "纪念馆")):
             score += 1.2
 
-        if any(token in f"{request.free_text_input} {rag_context}".lower() for token in ("rain", "雨", "indoor", "室内")):
+        if any(token in f"{request.free_text_input} {rag_context}".lower() for token in ("rain", "下雨", "雨天", "indoor", "室内")):
             if any(token in poi.name or token in poi.type for token in INDOOR_HINTS):
                 score += 2.0
 
-        if any(group in [companion.lower() for companion in request.companions] for group in ("family", "儿童", "亲子")):
-            if any(token in text for token in ("科技馆", "动物园", "博物馆", "公园", "海洋馆")):
+        companions = [companion.lower() for companion in request.companions]
+        if any(group in companions for group in ("family", "儿童", "亲子")):
+            if any(token in text for token in FAMILY_FRIENDLY_HINTS):
                 score += 1.5
 
         if any(need.lower() in {"low walking load", "low walking", "wheelchair", "elderly"} for need in request.mobility_needs):
             if any(token.lower() in text for token in [item.lower() for item in LOW_WALKING_PENALTIES]):
                 score -= 2.0
 
+        if "rainy_day" in skill_keys and any(token in poi.name or token in poi.type for token in INDOOR_HINTS):
+            score += 1.5
+        if "family_friendly" in skill_keys and any(token in text for token in FAMILY_FRIENDLY_HINTS):
+            score += 1.2
+        if "low_mobility" in skill_keys:
+            if any(token.lower() in text for token in [item.lower() for item in LOW_WALKING_PENALTIES]):
+                score -= 1.5
+            if any(token in poi.name or token in poi.type for token in INDOOR_HINTS):
+                score += 0.8
+
         return score
+
+    @staticmethod
+    def _skill_query_boosts(skills: List[SelectedSkill]) -> List[str]:
+        ordered: List[str] = []
+        seen: Set[str] = set()
+        for skill in skills:
+            for query in skill.attraction_query_boosts:
+                compact = query.strip()
+                if compact and compact not in seen:
+                    seen.add(compact)
+                    ordered.append(compact)
+        return ordered
 
     def _poi_to_attraction(self, poi: POIInfo, city: str) -> Attraction:
         category = poi.type.split(";")[0] if poi.type else "attraction"
