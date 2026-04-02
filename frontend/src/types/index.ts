@@ -259,6 +259,11 @@ export interface TravelTracksResponse {
   data: TravelTrackItem[]
 }
 
+export interface BasicResponse {
+  success: boolean
+  message: string
+}
+
 export interface KBEvaluatePayload {
   query: string
   city?: string | null

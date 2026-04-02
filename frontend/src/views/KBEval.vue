@@ -4,110 +4,103 @@
       <section class="glass-panel kb-panel">
         <div class="glass-toolbar">
           <div class="section-heading">
-            <span class="page-kicker">RAG 评测</span>
+            <span class="page-kicker">🧪 RAG评测</span>
             <h1 class="page-title kb-title">观察知识库召回和重排的表现，看看推荐依据是否更聪明了</h1>
-            <p class="page-subtitle">这个页面主要用来做调试和评估，适合对比不同查询词、标签过滤和重排模式的效果。</p>
-          </div>
-          <div class="toolbar-group">
-            <a-button @click="goPlanner">返回旅行规划</a-button>
-            <a-button type="primary" :loading="loading" @click="runEvaluation">开始评测</a-button>
+            <p class="page-subtitle">这个页面主要用来做调试和评估，适合对比不同查询词、标签过滤和重排模式的效果</p>
           </div>
         </div>
 
-        <a-form layout="vertical">
-          <a-row :gutter="16">
-            <a-col :xs="24" :md="12">
-              <a-form-item label="查询词">
-                <a-input v-model:value="formData.query" placeholder="例如：北京 雨天 亲子 室内 博物馆 科技馆" allow-clear />
-              </a-form-item>
-            </a-col>
-            <a-col :xs="24" :md="6">
-              <a-form-item label="城市过滤">
-                <a-input v-model:value="formData.city" placeholder="例如：beijing" allow-clear />
-              </a-form-item>
-            </a-col>
-            <a-col :xs="24" :md="6">
-              <a-form-item label="Top-K">
-                <a-input-number v-model:value="formData.top_k" :min="1" :max="20" />
-              </a-form-item>
-            </a-col>
-          </a-row>
+        <a-form layout="vertical" class="kb-form">
+          <div class="kb-rerank-row kb-rerank-row--top">
+            <span class="kb-rerank-label">⚙️ 启用重排</span>
+            <a-switch
+              v-model:checked="formData.rerank"
+              class="kb-rerank-switch"
+              checked-children="开"
+              un-checked-children="关"
+            />
+          </div>
 
-          <a-row :gutter="16">
-            <a-col :xs="24" :md="8">
-              <a-form-item label="标签过滤（逗号分隔）">
-                <a-input v-model:value="formData.tags" placeholder="例如：rainy_day,family,museum" allow-clear />
-              </a-form-item>
-            </a-col>
-            <a-col :xs="24" :md="8">
-              <a-form-item label="人群过滤（逗号分隔）">
-                <a-input v-model:value="formData.crowd_type" placeholder="例如：family,couple" allow-clear />
-              </a-form-item>
-            </a-col>
-            <a-col :xs="24" :md="8">
-              <a-form-item label="预算等级">
-                <a-select v-model:value="formData.budget_level" allow-clear>
-                  <a-select-option value="low">低预算</a-select-option>
-                  <a-select-option value="medium">中预算</a-select-option>
-                  <a-select-option value="high">高预算</a-select-option>
-                </a-select>
-              </a-form-item>
-            </a-col>
-          </a-row>
+          <div class="kb-form-grid">
+            <a-form-item label="🔎 查询词" class="kb-form-item">
+              <a-input v-model:value="formData.query" placeholder="例如：北京 雨天 亲子 室内 博物馆 科技馆" allow-clear />
+            </a-form-item>
 
-          <a-row :gutter="16">
-            <a-col :xs="24" :md="18">
-              <a-form-item label="期望命中关键词（逗号分隔）">
-                <a-input v-model:value="formData.expected_terms_text" placeholder="例如：rainy_day,family,museum,室内,亲子" allow-clear />
-              </a-form-item>
-            </a-col>
-            <a-col :xs="24" :md="6">
-              <a-form-item label="启用重排">
-                <a-switch v-model:checked="formData.rerank" checked-children="开" un-checked-children="关" />
-              </a-form-item>
-            </a-col>
-          </a-row>
+            <a-form-item label="🏙️ 城市过滤" class="kb-form-item">
+              <a-input v-model:value="formData.city" placeholder="例如：北京" allow-clear />
+            </a-form-item>
+
+            <a-form-item label="🔢 返回条数" class="kb-form-item">
+              <a-input-number v-model:value="formData.top_k" :min="1" :max="20" class="kb-full-control" />
+            </a-form-item>
+
+            <a-form-item label="🏷️ 标签过滤（逗号分隔）" class="kb-form-item">
+              <a-input v-model:value="formData.tags" placeholder="例如：雨天,亲子,博物馆" allow-clear />
+            </a-form-item>
+
+            <a-form-item label="👥 人群过滤（逗号分隔）" class="kb-form-item">
+              <a-input v-model:value="formData.crowd_type" placeholder="例如：家庭,情侣" allow-clear />
+            </a-form-item>
+
+            <a-form-item label="💰 预算等级" class="kb-form-item">
+              <a-select v-model:value="formData.budget_level" allow-clear>
+                <a-select-option value="low">低预算</a-select-option>
+                <a-select-option value="medium">中预算</a-select-option>
+                <a-select-option value="high">高预算</a-select-option>
+              </a-select>
+            </a-form-item>
+
+            <a-form-item label="🎯 期望命中关键词（逗号分隔）" class="kb-form-item">
+              <a-input v-model:value="formData.expected_terms_text" placeholder="例如：雨天,亲子,博物馆,室内" allow-clear />
+            </a-form-item>
+          </div>
         </a-form>
 
         <div class="section-heading" style="margin-top: 10px">
-          <h3>快捷用例</h3>
-          <p>如果你只是想快速验证，可以直接点下面的样例。</p>
+          <h3>⚡ 快捷用例</h3>
+          <p>如果你只是想快速验证，可以直接点下面的样例</p>
         </div>
         <div class="toolbar-group">
           <a-button @click="applyQuickCase('beijing_rainy_family')">北京雨天亲子</a-button>
-          <a-button @click="applyQuickCase('shanghai_citywalk_food')">上海 citywalk 美食</a-button>
+          <a-button @click="applyQuickCase('shanghai_citywalk_food')">上海城市漫游美食</a-button>
           <a-button @click="applyQuickCase('beijing_light_family')">北京轻松家庭出行</a-button>
+        </div>
+
+        <div class="kb-submit-row">
+          <a-button type="primary" size="large" class="kb-submit-button" :loading="loading" @click="runEvaluation">
+            🚀 开始评测
+          </a-button>
         </div>
       </section>
 
       <section v-if="result" class="glass-panel glass-panel--soft kb-panel">
         <div class="section-heading">
-          <h2>评测指标</h2>
+          <h2>📊 评测指标</h2>
           <p>{{ summaryText }}</p>
         </div>
         <div class="brand-stat-grid">
           <div class="brand-stat">
-            <span>召回数量</span>
+            <span>📥 召回数量</span>
             <strong>{{ result.metrics.recall_count }}</strong>
           </div>
           <div class="brand-stat">
-            <span>最终数量</span>
+            <span>📌 最终数量</span>
             <strong>{{ result.metrics.final_count }}</strong>
           </div>
           <div class="brand-stat">
-            <span>期望命中率</span>
+            <span>🎯 期望命中率</span>
             <strong>{{ toPercent(result.metrics.expected_hit_rate) }}%</strong>
           </div>
           <div class="brand-stat">
-            <span>Top1 增益</span>
+            <span>🚀 首位结果增益</span>
             <strong>{{ result.metrics.top1_gain.toFixed(4) }}</strong>
           </div>
           <div class="brand-stat">
-            <span>平均分</span>
+            <span>📈 平均分</span>
             <strong>{{ result.metrics.score_avg.toFixed(4) }}</strong>
           </div>
           <div class="brand-stat">
-            <span>最高分 / 最低分</span>
+            <span>📉 最高分 / 最低分</span>
             <strong>{{ result.metrics.score_max.toFixed(4) }} / {{ result.metrics.score_min.toFixed(4) }}</strong>
           </div>
         </div>
@@ -115,14 +108,16 @@
 
       <section v-if="result" class="glass-panel glass-panel--soft kb-panel">
         <div class="section-heading">
-          <h2>Top-K 明细</h2>
-          <p>下面可以看到每条结果的综合分、基础分、重排分和命中文本。</p>
+          <h2>📚 前列结果明细</h2>
+          <p>下面可以看到每条结果的综合分、基础分、重排分和命中文本</p>
         </div>
         <a-table :columns="columns" :data-source="result.items" row-key="rank" :pagination="false">
           <template #bodyCell="{ column, record }">
             <template v-if="column.dataIndex === 'score'">{{ Number(record.score).toFixed(4) }}</template>
             <template v-else-if="column.dataIndex === 'base_score'">{{ Number(record.base_score).toFixed(4) }}</template>
             <template v-else-if="column.dataIndex === 'rerank_score'">{{ Number(record.rerank_score).toFixed(4) }}</template>
+            <template v-else-if="column.dataIndex === 'rerank_mode'">{{ rerankModeLabel(record.rerank_mode) }}</template>
+            <template v-else-if="column.dataIndex === 'city_hint'">{{ cityHintLabel(record.city_hint) }}</template>
             <template v-else-if="column.dataIndex === 'source_doc'">{{ formatSourceDoc(record.source_doc) }}</template>
             <template v-else-if="column.dataIndex === 'snippet'">
               <span class="kb-snippet">{{ record.snippet }}</span>
@@ -136,7 +131,6 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 
 import { evaluateKnowledgeBase } from '@/services/api'
@@ -144,18 +138,17 @@ import type { KBEvaluateResponse } from '@/types'
 
 type QuickCaseType = 'beijing_rainy_family' | 'shanghai_citywalk_food' | 'beijing_light_family'
 
-const router = useRouter()
 const loading = ref(false)
 const result = ref<KBEvaluateResponse | null>(null)
 
 const formData = reactive({
   query: '北京 雨天 亲子 室内 博物馆 科技馆',
-  city: 'beijing',
+  city: '北京',
   top_k: 6,
-  tags: 'rainy_day,family,museum',
-  crowd_type: 'family',
+  tags: '雨天,亲子,博物馆',
+  crowd_type: '家庭',
   budget_level: 'medium',
-  expected_terms_text: 'rainy_day,family,museum,室内,亲子',
+  expected_terms_text: '雨天,亲子,博物馆,室内',
   rerank: true,
 })
 
@@ -177,20 +170,79 @@ const expectedTerms = computed(() =>
     .filter(Boolean),
 )
 
+const cityMappings: Record<string, string> = {
+  北京: 'beijing',
+  上海: 'shanghai',
+  杭州: 'hangzhou',
+  南京: 'nanjing',
+  武汉: 'wuhan',
+  黄山: 'huangshan',
+  黄山市: 'huangshan',
+}
+
+const keywordMappings: Record<string, string> = {
+  雨天: 'rainy_day',
+  亲子: 'family',
+  家庭: 'family',
+  情侣: 'couple',
+  朋友: 'friends',
+  博物馆: 'museum',
+  城市漫游: 'citywalk',
+  美食: 'food',
+  夜景: 'night_view',
+  公共交通: 'public_transit',
+}
+
+const normalizeCityFilter = (value: string) => {
+  const text = value.trim()
+  if (!text) return null
+  return cityMappings[text] || text.toLowerCase()
+}
+
+const normalizeCsvValues = (value: string) =>
+  value
+    .split(',')
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .map((token) => keywordMappings[token] || token)
+    .join(',')
+
+const rerankModeLabel = (value?: string) => {
+  const text = String(value || '').toLowerCase()
+  if (!text) return '未标注'
+  if (text.includes('off') || text.includes('none')) return '未启用重排'
+  if (text.includes('cross')) return '交叉重排'
+  if (text.includes('hybrid')) return '混合重排'
+  if (text.includes('semantic')) return '语义重排'
+  return value || '未标注'
+}
+
+const cityHintLabel = (value?: string) => {
+  const text = String(value || '').trim().toLowerCase()
+  const reverseMappings: Record<string, string> = {
+    beijing: '北京',
+    shanghai: '上海',
+    hangzhou: '杭州',
+    nanjing: '南京',
+    wuhan: '武汉',
+    huangshan: '黄山',
+  }
+  return reverseMappings[text] || value || '-'
+}
+
 const summaryText = computed(() => {
   if (!result.value) return '暂无评测数据'
   const gain = result.value.metrics.top1_gain
-  const rerankMode = result.value.metrics.rerank_mode
+  const rerankMode = rerankModeLabel(result.value.metrics.rerank_mode)
   if (gain > 0) {
-    return `重排后 Top1 提升 ${gain.toFixed(4)}，当前重排模式为 ${rerankMode}。`
+    return `重排后首位结果提升 ${gain.toFixed(4)}，当前重排模式为 ${rerankMode}`
   }
   if (gain < 0) {
-    return `重排后 Top1 下降 ${Math.abs(gain).toFixed(4)}，建议检查查询词、标签过滤和知识库内容。`
+    return `重排后首位结果下降 ${Math.abs(gain).toFixed(4)}，建议检查查询词、标签过滤和知识库内容`
   }
-  return `重排与基础检索的 Top1 持平，当前重排模式为 ${rerankMode}。`
+  return `重排与基础检索的首位结果持平，当前重排模式为 ${rerankMode}`
 })
 
-const goPlanner = () => router.push('/planner')
 const toPercent = (value: number) => Number(value || 0).toFixed(2)
 
 const formatSourceDoc = (docPath?: string) => {
@@ -203,28 +255,28 @@ const formatSourceDoc = (docPath?: string) => {
 const applyQuickCase = (type: QuickCaseType) => {
   if (type === 'beijing_rainy_family') {
     formData.query = '北京 雨天 亲子 室内 博物馆 科技馆'
-    formData.city = 'beijing'
-    formData.tags = 'rainy_day,family,museum'
-    formData.crowd_type = 'family'
+    formData.city = '北京'
+    formData.tags = '雨天,亲子,博物馆'
+    formData.crowd_type = '家庭'
     formData.budget_level = 'medium'
-    formData.expected_terms_text = 'rainy_day,family,museum,室内,亲子'
+    formData.expected_terms_text = '雨天,亲子,博物馆,室内'
     return
   }
   if (type === 'shanghai_citywalk_food') {
-    formData.query = '上海 citywalk 美食 夜景 步行 地铁'
-    formData.city = 'shanghai'
-    formData.tags = 'citywalk,food,night_view'
-    formData.crowd_type = 'friends,couple'
+    formData.query = '上海 城市漫游 美食 夜景 步行 地铁'
+    formData.city = '上海'
+    formData.tags = '城市漫游,美食,夜景'
+    formData.crowd_type = '朋友,情侣'
     formData.budget_level = 'medium'
-    formData.expected_terms_text = 'citywalk,food,night_view,步行,美食'
+    formData.expected_terms_text = '城市漫游,美食,夜景,步行'
     return
   }
   formData.query = '北京 家庭 公共交通 轻松 低强度 行程'
-  formData.city = 'beijing'
-  formData.tags = 'family'
-  formData.crowd_type = 'family'
+  formData.city = '北京'
+  formData.tags = '家庭'
+  formData.crowd_type = '家庭'
   formData.budget_level = 'medium'
-  formData.expected_terms_text = 'family,public_transit,低强度,亲子'
+  formData.expected_terms_text = '家庭,公共交通,低强度,亲子'
 }
 
 const runEvaluation = async () => {
@@ -237,10 +289,10 @@ const runEvaluation = async () => {
   try {
     result.value = await evaluateKnowledgeBase({
       query: formData.query.trim(),
-      city: formData.city.trim() || null,
+      city: normalizeCityFilter(formData.city),
       top_k: formData.top_k,
-      tags: formData.tags.trim() || null,
-      crowd_type: formData.crowd_type.trim() || null,
+      tags: normalizeCsvValues(formData.tags) || null,
+      crowd_type: normalizeCsvValues(formData.crowd_type) || null,
       budget_level: formData.budget_level || null,
       expected_terms: expectedTerms.value,
       rerank: formData.rerank,
@@ -263,14 +315,83 @@ const runEvaluation = async () => {
   font-size: clamp(34px, 4.2vw, 52px);
 }
 
+.kb-form {
+  display: block;
+}
+
+.kb-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.kb-form-item {
+  margin-bottom: 0;
+}
+
+.kb-full-control {
+  width: 100%;
+}
+
+.kb-rerank-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.kb-rerank-label {
+  color: var(--brand-text);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.kb-rerank-switch {
+  flex: 0 0 auto;
+}
+
 .kb-snippet {
   color: var(--brand-text);
   line-height: 1.75;
+}
+
+.kb-submit-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 22px;
+}
+
+.kb-submit-button {
+  min-width: 240px;
+  height: 52px;
+  border-radius: 18px;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: 0 18px 36px rgba(71, 143, 255, 0.22);
 }
 
 @media (max-width: 960px) {
   .kb-panel {
     padding: 22px;
   }
+
+  .kb-form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .kb-rerank-row {
+    margin-top: 12px;
+  }
+
+  .kb-submit-button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .kb-form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
+

@@ -1,7 +1,7 @@
 ﻿<template>
   <div class="day-route-map">
     <div v-if="!amapKey" class="day-route-map__placeholder">
-      <p>未配置高德 JS Key，当前显示静态路线图。</p>
+      <p>未配置高德地图密钥，当前显示静态路线图</p>
       <img
         v-if="fallbackStaticMapUrl"
         class="day-route-map__fallback"
@@ -23,12 +23,12 @@
     <div v-else-if="route?.markers?.length" ref="mapContainer" class="day-route-map__canvas"></div>
 
     <div v-else-if="fallbackStaticMapUrl" class="day-route-map__placeholder">
-      <p>交互式路线暂不可用，当前显示静态路线图。</p>
+      <p>交互式路线暂不可用，当前显示静态路线图</p>
       <img class="day-route-map__fallback" :src="fallbackStaticMapUrl" alt="路线静态图" />
     </div>
 
     <div v-else class="day-route-map__placeholder">
-      <p>当前没有可展示的路线点位。</p>
+      <p>当前没有可展示的路线点位</p>
     </div>
 
     <p v-if="error" class="day-route-map__error">{{ error }}</p>
@@ -40,6 +40,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import AMapLoader from '@amap/amap-jsapi-loader'
 
 import type { DayRouteInfo, DayRouteMarker } from '@/types'
+import { AMAP_MAP_STYLE } from '@/utils/mapStyle'
 
 const props = defineProps<{
   route?: DayRouteInfo | null
@@ -70,7 +71,7 @@ const buildInfoHtml = (marker: DayRouteMarker) => {
       ${imageBlock}
       <div style="display:inline-flex;align-items:center;gap:8px;margin-bottom:8px;">
         <span style="display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:#17324f;color:#fff;font-weight:700;">${marker.label}</span>
-        <strong style="font-size:15px;">${marker.title}</strong>
+        <strong style="font-size:16px;">${marker.title}</strong>
       </div>
       <div style="color:#5f7893;">${marker.address || '暂无地址信息'}</div>
     </div>
@@ -151,6 +152,7 @@ const ensureMap = async () => {
   mapInstance = new amapSdk.Map(mapContainer.value, {
     zoom: 12,
     center: [104.195397, 35.86166],
+    mapStyle: AMAP_MAP_STYLE,
     resizeEnable: true,
     scrollWheel: true,
     jogEnable: true,
@@ -233,6 +235,7 @@ onUnmounted(() => {
 .day-route-map__error {
   margin: 10px 0 0;
   color: #b42318;
-  font-size: 13px;
+  font-size: 16px;
 }
 </style>
+

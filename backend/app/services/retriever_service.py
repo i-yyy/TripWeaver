@@ -1,4 +1,4 @@
-"""RAG 检索编排服务。"""
+"""RAG 检索与重排服务"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from .reranker_service import get_reranker_service
 
 
 class RetrieverService:
-    """负责召回、重排和 RAG 上下文拼装。"""
+    """负责召回、重排和 RAG 上下文拼装"""
 
     def __init__(self) -> None:
         self.settings = get_settings()
@@ -125,7 +125,7 @@ class RetrieverService:
         if not kb_lines and not memory_lines and not profile_context:
             return ""
 
-        blocks = ["检索增强上下文（RAG）:"]
+        blocks = ["检索增强上下文（RAG）"]
         if profile_context:
             blocks.append(profile_context)
         if memory_lines:
@@ -133,7 +133,7 @@ class RetrieverService:
         if kb_lines:
             blocks.append("本地知识库命中片段（已重排）:\n" + "\n".join(kb_lines))
         else:
-            blocks.append("本地知识库未命中高相关片段。")
+            blocks.append("本地知识库未命中高相关片段")
         return "\n\n".join(blocks)
 
     @staticmethod
@@ -144,6 +144,8 @@ class RetrieverService:
         limit: int = 6,
     ) -> List[Dict[str, Any]]:
         reasons: List[RecommendationReason] = []
+        memory_reasons = RetrieverService._build_memory_recommendation_reasons(memories)
+        reasons.extend(memory_reasons)
 
         if profile_context.strip():
             first_line = profile_context.strip().splitlines()[0]
@@ -159,23 +161,7 @@ class RetrieverService:
                 )
             )
 
-        for memory in memories[:2]:
-            summary = memory.summary or memory.content
-            reasons.append(
-                RecommendationReason(
-                    source_type="memory",
-                    title=f"历史偏好记忆（{memory.memory_type}）",
-                    reason=RetrieverService._short_text(summary, 90),
-                    snippet=RetrieverService._short_text(memory.content, 180),
-                    score=float(memory.importance_score or 0.0),
-                    rerank_mode="memory-recall",
-                    metadata={
-                        "city": memory.city,
-                        "tags": memory.tags,
-                    },
-                )
-            )
-
+        kb_reasons: List[RecommendationReason] = []
         for item in ranked_results:
             metadata = dict(item.get("metadata", {}))
             city_hint = str(metadata.get("city_hint", "未知城市"))
@@ -196,27 +182,105 @@ class RetrieverService:
             if not reason_parts:
                 reason_parts.append("与当前行程需求语义相近")
 
-            reason = "；".join(reason_parts)
-            content = RetrieverService._short_text(str(item.get("content", "")), 160)
-            score = float(item.get("final_score", item.get("score", 0.0)))
-            rerank_mode = str(item.get("rerank_mode", "none"))
-            title = f"{city_hint} 本地知识命中"
-
-            reasons.append(
+            kb_reasons.append(
                 RecommendationReason(
                     source_type="knowledge_base",
-                    title=title,
-                    reason=reason,
-                    snippet=content,
-                    score=score,
-                    rerank_mode=rerank_mode,
+                    title=f"{city_hint} 本地知识命中",
+                    reason="；".join(reason_parts),
+                    snippet=RetrieverService._short_text(str(item.get("content", "")), 160),
+                    score=float(item.get("final_score", item.get("score", 0.0))),
+                    rerank_mode=str(item.get("rerank_mode", "none")),
                     source_doc=str(source_doc) if source_doc else None,
                     metadata=metadata,
                 )
             )
 
-        compact = reasons[:limit]
-        return [item.model_dump() for item in compact]
+        fixed_count = len(reasons)
+        kb_limit = max(2, limit - fixed_count) if kb_reasons else 0
+        reasons.extend(kb_reasons[:kb_limit])
+        return [item.model_dump() for item in reasons]
+
+    @staticmethod
+    def _memory_type_label(memory_type: str) -> str:
+        mapping = {
+            "session": "会话记忆",
+            "episodic": "行程记忆",
+            "semantic": "反馈记忆",
+        }
+        normalized = str(memory_type or "").strip().lower()
+        return mapping.get(normalized, memory_type or "其他记忆")
+
+    @staticmethod
+    def _build_memory_recommendation_reasons(memories: List[MemoryFact]) -> List[RecommendationReason]:
+        if not memories:
+            return []
+
+        priority_order = ["session", "episodic", "semantic"]
+        grouped: Dict[str, MemoryFact] = {}
+
+        for memory in memories:
+            memory_type = str(memory.memory_type or "").strip().lower()
+            if not memory_type:
+                continue
+            current = grouped.get(memory_type)
+            if current is None or float(memory.importance_score or 0.0) >= float(current.importance_score or 0.0):
+                grouped[memory_type] = memory
+
+        ordered_types = [item for item in priority_order if item in grouped]
+        ordered_types.extend([item for item in grouped.keys() if item not in ordered_types])
+        if not ordered_types:
+            return []
+
+        breakdown = []
+        for memory_type in ordered_types:
+            memory = grouped[memory_type]
+            breakdown.append(
+                {
+                    "memory_type": memory_type,
+                    "memory_label": RetrieverService._memory_type_label(memory_type),
+                    "score": float(memory.importance_score or 0.0),
+                }
+            )
+
+        total_score = sum(item["score"] for item in breakdown)
+        summary_text = " · ".join(f"{item['memory_label']} {item['score']:.3f}" for item in breakdown)
+
+        reasons = [
+            RecommendationReason(
+                source_type="memory",
+                title="历史偏好记忆总分",
+                reason=f"当前共命中 {len(breakdown)} 类历史偏好记忆",
+                snippet=summary_text,
+                score=total_score,
+                rerank_mode="memory-summary",
+                metadata={
+                    "memory_breakdown": breakdown,
+                    "memory_total_score": total_score,
+                },
+            )
+        ]
+
+        for memory_type in ordered_types:
+            memory = grouped[memory_type]
+            summary = memory.summary or memory.content
+            reasons.append(
+                RecommendationReason(
+                    source_type="memory",
+                    title=f"历史偏好记忆（{RetrieverService._memory_type_label(memory_type)}）",
+                    reason=RetrieverService._short_text(summary, 90),
+                    snippet=RetrieverService._short_text(memory.content, 180),
+                    score=float(memory.importance_score or 0.0),
+                    rerank_mode="memory-recall",
+                    metadata={
+                        "city": memory.city,
+                        "tags": memory.tags,
+                        "memory_type": memory_type,
+                        "memory_label": RetrieverService._memory_type_label(memory_type),
+                    },
+                )
+            )
+
+        return reasons
 
     @staticmethod
     def _short_text(text: str, limit: int) -> str:

@@ -12,6 +12,7 @@
   --brand-primary-soft: rgba(45, 134, 231, 0.12);
   --brand-line: rgba(189, 211, 236, 0.72);
   --brand-glow: rgba(117, 177, 242, 0.28);
+  --brand-shell-width: 1360px;
   --brand-radius-xl: 30px;
   --brand-radius-lg: 24px;
   --brand-radius-md: 18px;
@@ -26,6 +27,8 @@ body,
 body {
   margin: 0;
   color: var(--brand-text);
+  font-size: 18px;
+  line-height: 1.75;
   font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
   background:
     radial-gradient(circle at left top, rgba(255, 255, 255, 0.9), transparent 28%),
@@ -58,7 +61,7 @@ select {
 }
 
 .brand-shell {
-  width: min(1180px, 100%);
+  width: min(var(--brand-shell-width), 100%);
   margin: 0 auto;
 }
 
@@ -107,7 +110,7 @@ select {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.56);
   color: var(--brand-primary);
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: 0.14em;
   animation: fade-up 0.7s ease both;
@@ -125,7 +128,7 @@ select {
 .page-subtitle {
   margin: 0;
   color: var(--brand-muted);
-  font-size: 17px;
+  font-size: 20px;
   line-height: 1.8;
   animation: fade-up 0.94s ease both;
 }
@@ -163,7 +166,7 @@ select {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.52);
   color: var(--brand-muted);
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   border: 1px solid rgba(255, 255, 255, 0.48);
   transition: transform 0.22s ease, background 0.22s ease;
@@ -203,8 +206,9 @@ select {
 }
 
 .brand-stat span {
-  color: var(--brand-muted);
-  font-size: 13px;
+  color: #2f4156;
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .info-list {
@@ -230,13 +234,16 @@ select {
 .info-item strong {
   display: block;
   margin-bottom: 6px;
-  font-size: 16px;
+  font-size: 18px;
+  color: #111111;
+  font-weight: 700;
 }
 
 .info-item span,
 .info-item p {
   margin: 0;
   color: var(--brand-muted);
+  font-size: 17px;
   line-height: 1.7;
 }
 
@@ -256,12 +263,14 @@ select {
 .section-heading h2,
 .section-heading h3 {
   margin: 0 0 8px;
-  color: var(--brand-text);
+  color: #111111;
+  font-weight: 800;
 }
 
 .section-heading p {
   margin: 0;
   color: var(--brand-muted);
+  font-size: 17px;
   line-height: 1.7;
 }
 
@@ -275,6 +284,7 @@ select {
   border-radius: var(--brand-radius-md);
   background: rgba(255, 255, 255, 0.5);
   color: var(--brand-muted);
+  font-size: 17px;
   line-height: 1.75;
   border: 1px solid rgba(255, 255, 255, 0.46);
 }
@@ -302,6 +312,25 @@ select {
 .ant-collapse-header-text,
 .ant-statistic-title {
   color: var(--brand-text) !important;
+}
+
+.ant-form-item-label > label,
+.ant-collapse-header-text,
+.ant-statistic-title,
+.ant-empty-description,
+.ant-list-item-meta-description {
+  font-size: 16px !important;
+}
+
+.ant-input,
+.ant-input-affix-wrapper input,
+.ant-input-number-input,
+.ant-picker-input > input,
+.ant-select-selection-item,
+.ant-select-selection-placeholder,
+.ant-btn,
+.ant-tag {
+  font-size: 16px !important;
 }
 
 .ant-input,

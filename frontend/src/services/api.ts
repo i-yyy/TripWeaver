@@ -1,6 +1,7 @@
-import axios from 'axios'
+ï»¿import axios from 'axios'
 
 import type {
+  BasicResponse,
   AuthChangePasswordPayload,
   DayRoutePayload,
   DayRouteResponse,
@@ -101,7 +102,7 @@ export async function deleteCurrentAccount(): Promise<AuthUserResponse> {
     const response = await apiClient.delete<AuthUserResponse>('/api/auth/me')
     return response.data
   } catch (error: any) {
-    throw new Error(error.response?.data?.detail || error.message || 'Delete account failed')
+    throw new Error(error.response?.data?.detail || error.message || 'æ³¨é”€è´¦å·å¤±è´¥')
   }
 }
 
@@ -141,6 +142,15 @@ export async function getTravelTracks(): Promise<TravelTracksResponse> {
   }
 }
 
+export async function deleteTravelTrack(trackId: string): Promise<BasicResponse> {
+  try {
+    const response = await apiClient.delete<BasicResponse>(`/api/tracks/${trackId}`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || 'åˆ é™¤æ—…è¡Œè½¨è¿¹å¤±è´¥')
+  }
+}
+
 export async function getDayRouteDetail(payload: DayRoutePayload): Promise<DayRouteResponse> {
   try {
     const response = await apiClient.post<DayRouteResponse>('/api/map/day-route', payload)
@@ -155,7 +165,7 @@ export async function evaluateKnowledgeBase(payload: KBEvaluatePayload): Promise
     const response = await apiClient.post<KBEvaluateResponse>('/api/kb/evaluate', payload)
     return response.data
   } catch (error: any) {
-    throw new Error(error.response?.data?.detail || error.message || 'ÖªÊ¶¿âÆÀ¹ÀÊ§°Ü')
+    throw new Error(error.response?.data?.detail || error.message || 'çŸ¥è¯†åº“è¯„ä¼°å¤±è´¥')
   }
 }
 
@@ -164,7 +174,7 @@ export async function healthCheck(): Promise<any> {
     const response = await apiClient.get('/health')
     return response.data
   } catch (error: any) {
-    throw new Error(error.message || '½¡¿µ¼ì²éÊ§°Ü')
+    throw new Error(error.message || 'å¥åº·æ£€æŸ¥å¤±è´¥')
   }
 }
 

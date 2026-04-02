@@ -66,3 +66,8 @@ class TravelTracksResponse(BaseModel):
     success: bool
     message: str = ""
     data: List[TravelTrackItem] = Field(default_factory=list)
+
+
+class OperationResponse(BaseModel):
+    success: bool
+    message: str = ""

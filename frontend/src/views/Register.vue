@@ -1,25 +1,32 @@
-﻿<template>
+<template>
   <div class="brand-page auth-page">
+    <div class="auth-decor auth-decor--top-left">✈️</div>
+    <div class="auth-decor auth-decor--top-right">🧳</div>
+    <div class="auth-decor auth-decor--mid-left">🗺️</div>
+    <div class="auth-decor auth-decor--mid-right">📷</div>
+    <div class="auth-decor auth-decor--bottom-left">🎫</div>
+    <div class="auth-decor auth-decor--bottom-right">☁️</div>
+
     <div class="brand-shell auth-grid">
       <section class="glass-panel auth-copy-panel">
         <span class="page-kicker">新的故事，从这里开始</span>
         <h1 class="page-title auth-title">注册一个账号，让旅行偏好、轨迹和反馈都被好好记住</h1>
         <p class="page-subtitle">
-          以后每次规划都不再从零开始。系统会慢慢懂你的旅行节奏，也会把每一次搜索留下来的线索整理成更贴近你的建议。
+          以后每次规划都不再从零开始 系统会慢慢懂你的旅行节奏，也会把每一次搜索留下来的线索整理成更贴近你的建议
         </p>
 
         <div class="info-list auth-highlights">
           <div class="info-item">
             <strong>保存旅行轨迹</strong>
-            <span>搜索过的城市会自动收进你的个人地图里。</span>
+            <span>搜索过的城市会自动收进你的个人地图里</span>
           </div>
           <div class="info-item">
             <strong>积累偏好画像</strong>
-            <span>你喜欢的景点类型、住宿倾向和节奏都会持续沉淀。</span>
+            <span>你喜欢的景点类型、住宿倾向和节奏都会持续沉淀</span>
           </div>
           <div class="info-item">
             <strong>统一账号管理</strong>
-            <span>登录后就能在个人设置里维护昵称、邮箱和密码。</span>
+            <span>登录后就能在个人设置里维护昵称、邮箱和密码</span>
           </div>
         </div>
       </section>
@@ -27,7 +34,7 @@
       <section class="glass-panel glass-panel--soft auth-form-panel">
         <div class="section-heading">
           <h2>注册账号</h2>
-          <p>只需要三步，就能拥有自己的智能旅行空间。</p>
+          <p>只需要三步，就能拥有自己的智能旅行空间</p>
         </div>
 
         <a-form layout="vertical" @submit.prevent="handleRegister">
@@ -109,6 +116,57 @@ const handleRegister = async () => {
   align-items: center;
 }
 
+.auth-decor {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  box-shadow: 0 18px 34px rgba(76, 116, 170, 0.1);
+  backdrop-filter: blur(10px);
+  font-size: 28px;
+  animation: float-soft 5.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.auth-decor--top-left {
+  top: 40px;
+  left: clamp(22px, 5vw, 72px);
+}
+
+.auth-decor--top-right {
+  top: 58px;
+  right: clamp(18px, 5vw, 64px);
+  animation-delay: 0.5s;
+}
+
+.auth-decor--mid-left {
+  top: 38%;
+  left: clamp(8px, 3vw, 30px);
+  animation-delay: 1.1s;
+}
+
+.auth-decor--mid-right {
+  top: 42%;
+  right: clamp(10px, 3vw, 34px);
+  animation-delay: 1.6s;
+}
+
+.auth-decor--bottom-left {
+  bottom: 56px;
+  left: clamp(28px, 7vw, 118px);
+  animation-delay: 0.8s;
+}
+
+.auth-decor--bottom-right {
+  bottom: 42px;
+  right: clamp(36px, 8vw, 132px);
+  animation-delay: 1.9s;
+}
+
 .auth-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
@@ -151,6 +209,18 @@ const handleRegister = async () => {
   .auth-copy-panel,
   .auth-form-panel {
     padding: 24px;
+  }
+
+  .auth-decor {
+    width: 54px;
+    height: 54px;
+    border-radius: 18px;
+    font-size: 22px;
+  }
+
+  .auth-decor--mid-left,
+  .auth-decor--mid-right {
+    display: none;
   }
 }
 </style>

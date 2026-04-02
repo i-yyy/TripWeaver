@@ -8,7 +8,7 @@ from typing import List
 from sqlmodel import select
 
 from ..db.database import session_scope
-from ..db.models import TripHistory
+from ..db.models import MemoryItem, TripHistory
 from ..models.auth_schemas import TravelTrackItem
 from .amap_service import get_amap_service
 
@@ -57,6 +57,33 @@ class TracksService:
             )
             for item in items
         ]
+
+    def delete_track(self, user_id: str, track_id: str) -> bool:
+        with session_scope() as session:
+            statement = (
+                select(TripHistory)
+                .where(TripHistory.id == track_id)
+                .where(TripHistory.user_id == user_id)
+            )
+            track = session.exec(statement).first()
+            if track is None:
+                return False
+
+            memory_statement = (
+                select(MemoryItem)
+                .where(MemoryItem.user_id == user_id)
+                .where(MemoryItem.session_id == track.session_id)
+                .where(MemoryItem.memory_type == "episodic")
+                .where(MemoryItem.city == track.city)
+            )
+            related_memories = session.exec(memory_statement).all()
+
+            for item in related_memories:
+                session.delete(item)
+
+            session.delete(track)
+            session.commit()
+            return True
 
 
 _tracks_service: TracksService | None = None

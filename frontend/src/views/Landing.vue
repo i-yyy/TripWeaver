@@ -7,42 +7,42 @@
             <span class="landing-brand__badge">旅</span>
             <span class="landing-brand__name">智能旅行助手</span>
           </div>
-          <span class="landing-nav__text">旅行规划</span>
-          <span class="landing-nav__text">旅行轨迹</span>
-          <span class="landing-nav__text">个人设置</span>
+          <span class="landing-nav__text">🧭 旅行规划</span>
+          <span class="landing-nav__text">🗺️ 旅行轨迹</span>
+          <span class="landing-nav__text">👤 个人设置</span>
         </div>
       </header>
 
       <div class="landing-grid">
         <div class="landing-copy">
-          <span class="page-kicker">灵感一来，立刻出发</span>
+          <span class="page-kicker">✨ 灵感一来，立刻出发</span>
           <h1 class="page-title landing-title">把下一段旅行，规划成真正想去的样子</h1>
           <p class="page-subtitle landing-subtitle">
-            从想去哪个城市，到住哪里、怎么玩、路线怎么排，我们都会替你认真想好。它懂你的偏好，记得你的选择，也会把每一次探索悄悄留在地图里。
+            从想去哪个城市，到住哪里、怎么玩、路线怎么排，我们都会替你认真想好它懂你的偏好，记得你的选择，也会把每一次探索悄悄留在地图里
           </p>
 
           <div class="landing-actions">
             <template v-if="authenticated">
-              <button class="landing-action landing-action--primary" type="button" @click="goPlanner">进入旅行规划</button>
-              <button class="landing-action landing-action--secondary" type="button" @click="goTracks">查看旅行轨迹</button>
+              <button class="landing-action landing-action--primary" type="button" @click="goPlanner">🧭 进入旅行规划</button>
+              <button class="landing-action landing-action--secondary" type="button" @click="goTracks">🗺️ 查看旅行轨迹</button>
             </template>
             <template v-else>
-              <button class="landing-action landing-action--primary" type="button" @click="goLogin">登录</button>
-              <button class="landing-action landing-action--secondary" type="button" @click="goRegister">注册</button>
+              <button class="landing-action landing-action--primary" type="button" @click="goLogin">🔑 登录</button>
+              <button class="landing-action landing-action--secondary" type="button" @click="goRegister">✨ 注册</button>
             </template>
           </div>
 
           <div class="brand-stat-grid landing-stats">
             <div class="brand-stat">
-              <span>智能推荐</span>
+              <span>🤖 智能推荐</span>
               <strong>景点、酒店、节奏一体生成</strong>
             </div>
             <div class="brand-stat">
-              <span>旅行轨迹</span>
+              <span>🗺️ 旅行轨迹</span>
               <strong>搜索过的城市自动点亮</strong>
             </div>
             <div class="brand-stat">
-              <span>个人偏好</span>
+              <span>💗 个人偏好</span>
               <strong>越用越懂你想怎么旅行</strong>
             </div>
           </div>
@@ -50,15 +50,15 @@
 
         <div class="landing-visual" aria-hidden="true">
           <div class="floating-card floating-card--plan">
-            <strong>旅行规划</strong>
+            <strong>🧭 旅行规划</strong>
             <span>把城市灵感整理成可执行的行程</span>
           </div>
           <div class="floating-card floating-card--track">
-            <strong>旅行轨迹</strong>
+            <strong>🗺️ 旅行轨迹</strong>
             <span>每一次搜索都会在地图上留下足迹</span>
           </div>
           <div class="floating-card floating-card--profile">
-            <strong>个人设置</strong>
+            <strong>👤 个人设置</strong>
             <span>昵称、偏好、账号信息统一管理</span>
           </div>
 
@@ -442,3 +442,4 @@ const goTracks = () => router.push('/tracks')
   }
 }
 </style>
+
