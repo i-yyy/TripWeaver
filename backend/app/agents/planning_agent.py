@@ -13,9 +13,10 @@ from hello_agents import SimpleAgent
 
 from ..models.agent_schemas import AgentExecutionStatus, PlanningAgentInput, PlanningAgentOutput
 from ..models.schemas import Attraction, Budget, DayPlan, Hotel, Location, Meal, TripPlan, WeatherInfo
-from ..models.skill_schemas import SelectedSkill
+from ..models.skill_schemas import SelectedSkill, ValidationResult
 from ..services.amap_service import get_amap_service
 from ..services.llm_service import get_llm
+from ..services.plan_constraint_validator import PlanConstraintValidator, get_plan_constraint_validator
 from ..services.unsplash_service import get_unsplash_service
 
 logger = logging.getLogger(__name__)
@@ -93,13 +94,18 @@ PLANNER_AGENT_PROMPT = """
 
 
 class PlanningAgent:
-    def __init__(self, planner_runner: Any | None = None) -> None:
+    def __init__(
+        self,
+        planner_runner: Any | None = None,
+        constraint_validator: PlanConstraintValidator | None = None,
+    ) -> None:
         self.tools = ["llm_service"]
         self.planner_runner = planner_runner or SimpleAgent(
             name="planning-agent",
             llm=get_llm(),
             system_prompt=PLANNER_AGENT_PROMPT,
         )
+        self.constraint_validator = constraint_validator or get_plan_constraint_validator()
 
     def list_tools(self) -> List[str]:
         return list(self.tools)
@@ -110,8 +116,15 @@ class PlanningAgent:
             raw_response = await asyncio.to_thread(self.planner_runner.run, prompt)
             trip_plan = self._parse_response(raw_response, payload)
             trip_plan = await self._safe_enrich_plan(trip_plan, payload)
+            trip_plan, validation = await self._validate_plan(trip_plan, payload)
+            warnings = self._validation_messages(validation)
             return PlanningAgentOutput(
-                status=AgentExecutionStatus(success=True, degraded=False, warnings=[]),
+                status=AgentExecutionStatus(
+                    success=not bool(validation.errors),
+                    degraded=bool(warnings),
+                    warnings=warnings,
+                    error=validation.errors[0].message if validation.errors else None,
+                ),
                 trip_plan=trip_plan,
                 raw_response=str(raw_response),
             )
@@ -120,8 +133,15 @@ class PlanningAgent:
             logger.warning(warning)
             trip_plan = self.build_fallback_plan(payload)
             trip_plan = await self._safe_enrich_plan(trip_plan, payload)
+            trip_plan, validation = await self._validate_plan(trip_plan, payload)
+            validation_messages = self._validation_messages(validation)
             return PlanningAgentOutput(
-                status=AgentExecutionStatus(success=False, degraded=True, warnings=[warning], error=str(exc)),
+                status=AgentExecutionStatus(
+                    success=False,
+                    degraded=True,
+                    warnings=[warning] + validation_messages,
+                    error=str(exc) if not validation.errors else validation.errors[0].message,
+                ),
                 trip_plan=trip_plan,
                 raw_response=None,
             )
@@ -132,6 +152,23 @@ class PlanningAgent:
         except Exception as exc:  # pragma: no cover - external dependency
             logger.warning("Trip plan enrichment failed: %s", exc)
             return trip_plan
+
+    async def _validate_plan(
+        self,
+        trip_plan: TripPlan,
+        payload: PlanningAgentInput,
+    ) -> tuple[TripPlan, ValidationResult]:
+        return await asyncio.to_thread(
+            self.constraint_validator.validate_and_repair,
+            payload.request,
+            payload.skills,
+            trip_plan,
+            payload.weather_result,
+        )
+
+    @staticmethod
+    def _validation_messages(validation: ValidationResult) -> List[str]:
+        return [issue.message for issue in [*validation.warnings, *validation.errors]]
 
     def build_fallback_plan(self, payload: PlanningAgentInput) -> TripPlan:
         request = payload.request
@@ -215,7 +252,16 @@ class PlanningAgent:
         return {
             "key": skill.key,
             "name": skill.name,
+            "layer": skill.layer,
+            "category": skill.category,
+            "source": skill.source,
+            "matched_fields": list(skill.matched_fields),
+            "matched_terms": list(skill.matched_terms),
             "reasons": list(skill.reasons),
+            "hard_rules": list(skill.hard_rules),
+            "soft_rules": list(skill.soft_rules),
+            "meal_rules": list(skill.meal_rules),
+            "routing_rules": list(skill.routing_rules),
             "planning_rules": list(skill.planning_rules),
             "output_hints": list(skill.output_hints),
         }
@@ -224,11 +270,20 @@ class PlanningAgent:
         if not skills:
             return ""
 
-        lines = ["Enabled skills. Prioritize these rules before arranging the itinerary:"]
+        lines = ["Enabled skills. Follow hard constraints first, then style preferences:"]
         for skill in skills:
-            lines.append(f"- {skill.name} ({skill.key})")
-            for rule in skill.planning_rules:
-                lines.append(f"  * {rule}")
+            lines.append(f"- {skill.name} ({skill.key}, {skill.layer}, {skill.category})")
+            for rule in skill.hard_rules:
+                lines.append(f"  * hard: {rule}")
+            for rule in skill.soft_rules:
+                lines.append(f"  * soft: {rule}")
+            for rule in skill.meal_rules:
+                lines.append(f"  * meal: {rule}")
+            for rule in skill.routing_rules:
+                lines.append(f"  * routing: {rule}")
+            if not any([skill.hard_rules, skill.soft_rules, skill.meal_rules, skill.routing_rules]):
+                for rule in skill.planning_rules:
+                    lines.append(f"  * rule: {rule}")
         lines.append("")
         return "\n".join(lines)
 

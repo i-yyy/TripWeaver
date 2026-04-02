@@ -15,6 +15,7 @@ from ..models.agent_schemas import (
     SupervisorAgentOutput,
     WeatherAgentInput,
 )
+from ..services.skill_service import SkillService, get_skill_service
 from .attraction_agent import AttractionAgent
 from .hotel_agent import HotelAgent
 from .planning_agent import PlanningAgent
@@ -30,11 +31,13 @@ class SupervisorAgent:
         weather_agent: WeatherAgent | None = None,
         hotel_agent: HotelAgent | None = None,
         planning_agent: PlanningAgent | None = None,
+        skill_service: SkillService | None = None,
     ) -> None:
         self.attraction_agent = attraction_agent or AttractionAgent()
         self.weather_agent = weather_agent or WeatherAgent()
         self.hotel_agent = hotel_agent or HotelAgent()
         self.planning_agent = planning_agent or PlanningAgent()
+        self.skill_service = skill_service or get_skill_service()
         self.tools: List[str] = []
 
     async def execute(self, payload: SupervisorAgentInput) -> SupervisorAgentOutput:
@@ -71,6 +74,15 @@ class SupervisorAgent:
         for result in (attraction_result, weather_result, hotel_result):
             warnings.extend(result.status.warnings)
 
+        dynamic_skills = self.skill_service.augment_dynamic_skills(
+            request=request,
+            weather_result=weather_result,
+            profile_context=payload.profile_context,
+            memory_context=payload.memory_context,
+            rag_context=payload.rag_context,
+        )
+        final_skills = self.skill_service.finalize_skills(payload.skills, dynamic_skills)
+
         planning_result = await self.planning_agent.execute(
             PlanningAgentInput(
                 request=request,
@@ -78,7 +90,7 @@ class SupervisorAgent:
                 memory_context=payload.memory_context,
                 rag_context=payload.rag_context,
                 recommendation_reasons=payload.recommendation_reasons,
-                skills=payload.skills,
+                skills=final_skills,
                 attraction_result=attraction_result,
                 weather_result=weather_result,
                 hotel_result=hotel_result,

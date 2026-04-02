@@ -74,7 +74,7 @@ async def plan_trip(
             else RecommendationReason.model_validate(reason)
             for reason in rag_bundle.get("recommendation_reasons", [])
         ]
-        selected_skills = skill_service.select_skills(
+        static_skills = skill_service.select_static_skills(
             request=request,
             profile_context=profile_context,
             memory_context=memory_context,
@@ -87,10 +87,9 @@ async def plan_trip(
             memory_context=memory_context,
             rag_context=rag_context,
             recommendation_reasons=recommendation_reasons,
-            skills=selected_skills,
+            skills=static_skills,
         )
         trip_plan.recommendation_reasons = recommendation_reasons
-        trip_plan.applied_skills = selected_skills
 
         memory_service.save_trip_summary(request, trip_plan)
         return TripPlanResponse(success=True, message="Trip plan generated successfully", data=trip_plan)
