@@ -690,7 +690,24 @@ const buildPlaceholderImage = (name: string) =>
     </svg>
   `)}`
 
-const resolveAttractionImage = (item: Attraction) => item.image_url || item.photos?.[0] || buildPlaceholderImage(item.name)
+const isMapImageUrl = (url?: string | null) => {
+  const text = String(url || '').trim().toLowerCase()
+  if (!text) return false
+  return (
+    text.startsWith('map:') ||
+    text.includes('/v3/staticmap') ||
+    text.includes('restapi.amap.com/v3/staticmap') ||
+    text.includes('webapi.amap.com/maps/staticmap')
+  )
+}
+
+const resolveAttractionImage = (item: Attraction) => {
+  const candidates = [item.image_url, ...(item.photos || [])]
+    .map((url) => String(url || '').trim())
+    .filter((url) => Boolean(url) && !isMapImageUrl(url))
+  return candidates[0] || buildPlaceholderImage(item.name)
+}
+
 const hasValidLocation = (location?: Attraction['location'] | null): location is Attraction['location'] =>
   Boolean(location && Number.isFinite(location.longitude) && Number.isFinite(location.latitude))
 

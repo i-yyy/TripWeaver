@@ -243,6 +243,7 @@ class PlanningAgent:
         return (
             "请基于以下结构化上下文生成中文旅行计划 JSON。"
             "再次强调：只能输出 JSON，所有说明必须使用简体中文。\n"
+            "Keep the existing poi_id for attractions from context whenever available. Do not invent or drop poi_id, image_url, photos, image_source, image_status, or map_image_url when reusing a provided attraction.\n"
             f"{skill_block}{context_json}"
         )
 
@@ -440,11 +441,10 @@ class PlanningAgent:
         defaults: List[Attraction],
         city: str,
     ) -> List[Attraction]:
-        fallback_map = {item.name.strip().lower(): item for item in defaults if item.name.strip()}
         enriched: List[Attraction] = []
 
         for attraction in attractions:
-            fallback = fallback_map.get(attraction.name.strip().lower())
+            fallback = self._match_attraction_fallback(attraction.name, attraction.address, defaults)
             description = attraction.description.strip()
             if not description and fallback and fallback.description.strip():
                 description = fallback.description.strip()
@@ -460,6 +460,12 @@ class PlanningAgent:
                     update={
                         "description": description,
                         "address": attraction.address or (fallback.address if fallback else city),
+                        "poi_id": attraction.poi_id or (fallback.poi_id if fallback else ""),
+                        "photos": list(attraction.photos or (fallback.photos if fallback else []) or []),
+                        "image_url": attraction.image_url or (fallback.image_url if fallback else None),
+                        "image_source": attraction.image_source or (fallback.image_source if fallback else None),
+                        "image_status": attraction.image_status or (fallback.image_status if fallback else None),
+                        "map_image_url": attraction.map_image_url or (fallback.map_image_url if fallback else None),
                     }
                 )
             )
@@ -506,7 +512,31 @@ class PlanningAgent:
             else:
                 url = item
             text = str(url or "").strip()
-            if not text or text in seen:
+            if not text or text in seen or PlanningAgent._is_map_like_image_url(text):
+                continue
+            seen.add(text)
+            normalized.append(text)
+        return normalized
+
+    @staticmethod
+    def _is_map_like_image_url(url: Any) -> bool:
+        text = str(url or "").strip().lower()
+        if not text:
+            return False
+        return (
+            text.startswith("map:")
+            or "/v3/staticmap" in text
+            or "restapi.amap.com/v3/staticmap" in text
+            or "webapi.amap.com/maps/staticmap" in text
+        )
+
+    @classmethod
+    def _dedupe_real_image_urls(cls, raw_urls: List[Any]) -> List[str]:
+        normalized: List[str] = []
+        seen: set[str] = set()
+        for item in raw_urls:
+            text = str(item or "").strip()
+            if not text or text in seen or cls._is_map_like_image_url(text):
                 continue
             seen.add(text)
             normalized.append(text)
@@ -517,14 +547,14 @@ class PlanningAgent:
         amap_service,
         attraction: Attraction,
         city: str,
-    ) -> tuple[Optional[str], List[str]]:
-        photos = list(attraction.photos or [])
+    ) -> tuple[Optional[str], List[str], Optional[str], str]:
+        photos = self._dedupe_real_image_urls(list(attraction.photos or []))
         amap_photos: List[str] = []
 
         if attraction.poi_id:
             try:
-                amap_photos = list(amap_service.get_poi_photo_urls(attraction.poi_id))
-                photos = list(dict.fromkeys([*amap_photos, *photos]))
+                amap_photos = self._dedupe_real_image_urls(list(amap_service.get_poi_photo_urls(attraction.poi_id)))
+                photos = self._dedupe_real_image_urls([*amap_photos, *photos])
             except Exception as exc:
                 logger.debug("AMap POI photo lookup failed poi_id=%s error=%s", attraction.poi_id, exc)
 
@@ -532,12 +562,15 @@ class PlanningAgent:
         if attraction.image_url:
             image_candidates.append(attraction.image_url)
         image_candidates.extend(photos)
+        image_candidates = self._dedupe_real_image_urls(image_candidates)
         image_url = next((item for item in image_candidates if item), None)
 
         if image_url:
-            photos = list(dict.fromkeys([image_url, *photos]))
+            photos = self._dedupe_real_image_urls([image_url, *photos])
+            image_source = "amap" if image_url in amap_photos else attraction.image_source or "provided"
+            return image_url, photos, image_source, "ok"
 
-        return image_url, photos
+        return None, photos, None, "missing"
 
     def _normalize_attraction_with_fallback(
         self,
@@ -564,7 +597,16 @@ class PlanningAgent:
             description=str(item.get("description") or item.get("reason") or ""),
             category=str(item.get("category") or "景点"),
             photos=self._normalize_photo_urls(item.get("photos")),
-            image_url=str(item.get("image_url") or "") or None,
+            image_url=next(
+                iter(
+                    self._dedupe_real_image_urls(
+                        [item.get("image_url"), fallback.image_url if fallback else None]
+                    )
+                ),
+                None,
+            ),
+            image_source=str(item.get("image_source") or "") or (fallback.image_source if fallback else None),
+            image_status=str(item.get("image_status") or "") or (fallback.image_status if fallback else None),
             map_image_url=str(item.get("map_image_url") or "") or None,
             ticket_price=self._to_int(item.get("ticket_price") or item.get("price"), 0),
             poi_id=str(item.get("poi_id") or item.get("id") or (fallback.poi_id if fallback else "") or ""),
@@ -610,15 +652,24 @@ class PlanningAgent:
 
     @staticmethod
     def _match_attraction_fallback(name: str, address: str, candidates: List[Attraction]) -> Optional[Attraction]:
-        normalized_name = re.sub(r"\s+", "", name).lower()
-        normalized_address = re.sub(r"\s+", "", address).lower()
+        normalized_name = re.sub(r"[\s()（）,，、\\/_-]+", "", name).lower()
+        normalized_address = re.sub(r"[\s()（）,，、\\/_-]+", "", address).lower()
         for candidate in candidates:
-            candidate_name = re.sub(r"\s+", "", candidate.name).lower()
-            candidate_address = re.sub(r"\s+", "", candidate.address).lower()
+            candidate_name = re.sub(r"[\s()（）,，、\\/_-]+", "", candidate.name).lower()
+            candidate_address = re.sub(r"[\s()（）,，、\\/_-]+", "", candidate.address).lower()
             if normalized_name and normalized_name == candidate_name:
                 return candidate
             if normalized_address and normalized_address == candidate_address:
                 return candidate
+        for candidate in candidates:
+            candidate_name = re.sub(r"[\s()（）,，、\\/_-]+", "", candidate.name).lower()
+            candidate_address = re.sub(r"[\s()（）,，、\\/_-]+", "", candidate.address).lower()
+            if normalized_name and candidate_name and min(len(normalized_name), len(candidate_name)) >= 4:
+                if normalized_name in candidate_name or candidate_name in normalized_name:
+                    return candidate
+            if normalized_address and candidate_address and min(len(normalized_address), len(candidate_address)) >= 6:
+                if normalized_address in candidate_address or candidate_address in normalized_address:
+                    return candidate
         return None
 
     @staticmethod
@@ -641,7 +692,9 @@ class PlanningAgent:
             description=str(item.get("description") or item.get("reason") or ""),
             category=str(item.get("category") or "景点"),
             photos=self._normalize_photo_urls(item.get("photos")),
-            image_url=str(item.get("image_url") or "") or None,
+            image_url=next(iter(self._dedupe_real_image_urls([item.get("image_url")])), None),
+            image_source=str(item.get("image_source") or "") or None,
+            image_status=str(item.get("image_status") or "") or None,
             map_image_url=str(item.get("map_image_url") or "") or None,
             ticket_price=self._to_int(item.get("ticket_price") or item.get("price"), 0),
             poi_id=str(item.get("poi_id") or item.get("id") or ""),
@@ -933,15 +986,18 @@ class PlanningAgent:
                     [attraction.location],
                     labels=[str(index)],
                 )
-                image_url, photos = self._resolve_attraction_media(amap_service, attraction, trip_plan.city)
+                image_url, photos, image_source, image_status = self._resolve_attraction_media(
+                    amap_service, attraction, trip_plan.city
+                )
                 photos = [item for item in photos if item and item not in used_image_urls]
                 if image_url in used_image_urls:
                     image_url = next((item for item in photos if item not in used_image_urls), None)
-                if not image_url and map_image_url:
-                    image_url = map_image_url
-                    photos = [map_image_url, *photos]
+                    if not image_url:
+                        image_source = None
+                        image_status = "missing"
                 if image_url:
                     used_image_urls.add(image_url)
+                    photos = self._dedupe_real_image_urls([image_url, *photos])
                 description = self._ensure_chinese_attraction_description(
                     attraction.description,
                     attraction.name,
@@ -953,6 +1009,8 @@ class PlanningAgent:
                         update={
                             "image_url": image_url,
                             "photos": photos,
+                            "image_source": image_source,
+                            "image_status": image_status,
                             "map_image_url": map_image_url,
                             "description": description,
                         }

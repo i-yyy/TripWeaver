@@ -120,6 +120,8 @@ class Attraction(BaseModel):
     photos: List[str] = Field(default_factory=list)
     poi_id: str = ""
     image_url: Optional[str] = None
+    image_source: Optional[str] = None
+    image_status: Optional[str] = None
     map_image_url: Optional[str] = None
     ticket_price: int = 0
 

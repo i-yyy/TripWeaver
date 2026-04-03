@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import unittest
 from unittest.mock import patch
@@ -63,7 +63,7 @@ class PlanningAgentContentTest(unittest.TestCase):
         self.assertNotIn("\u7b80\u9910", enriched[0].name)
         self.assertNotIn("\u7d20\u98df\u9910", enriched[1].name)
 
-    def test_duplicate_attraction_images_fall_back_to_map(self) -> None:
+    def test_duplicate_attraction_images_do_not_fall_back_to_map(self) -> None:
         planner = PlanningAgent(planner_runner=RaisingPlannerRunner())
         request = self._build_request()
         trip_plan = TripPlan(
@@ -124,8 +124,11 @@ class PlanningAgentContentTest(unittest.TestCase):
 
         day = enriched.days[0]
         self.assertEqual(day.attractions[0].image_url, "https://example.com/shared.jpg")
-        self.assertTrue(str(day.attractions[1].image_url).startswith("map:2:"))
+        self.assertIsNone(day.attractions[1].image_url)
+        self.assertTrue(str(day.attractions[1].map_image_url).startswith("map:2:"))
 
 
 if __name__ == "__main__":
     unittest.main()
+
+

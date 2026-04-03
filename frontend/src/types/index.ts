@@ -14,6 +14,8 @@ export interface Attraction {
   photos?: string[]
   poi_id?: string
   image_url?: string
+  image_source?: string
+  image_status?: string
   map_image_url?: string
   ticket_price?: number
 }
