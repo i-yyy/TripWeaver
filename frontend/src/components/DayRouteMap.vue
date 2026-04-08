@@ -1,34 +1,29 @@
-ï»¿<template>
+<template>
   <div class="day-route-map">
     <div v-if="!amapKey" class="day-route-map__placeholder">
-      <p>æœªé…ç½®é«˜å¾·åœ°å›¾å¯†é’¥ï¼Œå½“å‰æ˜¾ç¤ºé™æ€è·¯çº¿å›¾</p>
+      <p>Î´ÅäÖÃ¸ßµÂµØÍ¼ÃÜÔ¿£¬µ±Ç°ÏÔÊ¾¾²Ì¬Â·ÏßÍ¼</p>
       <img
         v-if="fallbackStaticMapUrl"
         class="day-route-map__fallback"
         :src="fallbackStaticMapUrl"
-        alt="è·¯çº¿é™æ€å›¾"
+        alt="Â·Ïß¾²Ì¬Í¼"
       />
     </div>
 
-    <div v-else-if="loading" class="day-route-map__placeholder">
-      <p>æ­£åœ¨åŠ è½½å½“æ—¥è·¯çº¿åœ°å›¾...</p>
-      <img
-        v-if="fallbackStaticMapUrl"
-        class="day-route-map__fallback"
-        :src="fallbackStaticMapUrl"
-        alt="è·¯çº¿é™æ€å›¾"
-      />
+    <div v-else-if="canRenderInteractive" class="day-route-map__stage">
+      <div ref="mapContainer" class="day-route-map__canvas"></div>
+      <div v-if="loading" class="day-route-map__overlay">
+        <p>ÕıÔÚ¸üĞÂµ±ÈÕÂ·ÏßµØÍ¼...</p>
+      </div>
     </div>
-
-    <div v-else-if="route?.markers?.length" ref="mapContainer" class="day-route-map__canvas"></div>
 
     <div v-else-if="fallbackStaticMapUrl" class="day-route-map__placeholder">
-      <p>äº¤äº’å¼è·¯çº¿æš‚ä¸å¯ç”¨ï¼Œå½“å‰æ˜¾ç¤ºé™æ€è·¯çº¿å›¾</p>
-      <img class="day-route-map__fallback" :src="fallbackStaticMapUrl" alt="è·¯çº¿é™æ€å›¾" />
+      <p>½»»¥Ê½Â·ÏßÔİ²»¿ÉÓÃ£¬µ±Ç°ÏÔÊ¾¾²Ì¬Â·ÏßÍ¼</p>
+      <img class="day-route-map__fallback" :src="fallbackStaticMapUrl" alt="Â·Ïß¾²Ì¬Í¼" />
     </div>
 
     <div v-else class="day-route-map__placeholder">
-      <p>å½“å‰æ²¡æœ‰å¯å±•ç¤ºçš„è·¯çº¿ç‚¹ä½</p>
+      <p>µ±Ç°Ã»ÓĞ¿ÉÕ¹Ê¾µÄÂ·ÏßµãÎ»</p>
     </div>
 
     <p v-if="error" class="day-route-map__error">{{ error }}</p>
@@ -73,7 +68,7 @@ const buildInfoHtml = (marker: DayRouteMarker) => {
         <span style="display:inline-grid;place-items:center;min-width:26px;height:26px;padding:0 8px;border-radius:999px;background:#17324f;color:#fff;font-weight:700;">${marker.label}</span>
         <strong style="font-size:16px;">${marker.title}</strong>
       </div>
-      <div style="color:#5f7893;">${marker.address || 'æš‚æ— åœ°å€ä¿¡æ¯'}</div>
+      <div style="color:#5f7893;">${marker.address || 'ÔİÎŞµØÖ·ĞÅÏ¢'}</div>
     </div>
   `
 }
@@ -84,6 +79,18 @@ const clearOverlays = () => {
   polylines.forEach((line) => mapInstance.remove(line))
   markers = []
   polylines = []
+}
+
+const destroyMap = () => {
+  clearOverlays()
+  if (infoWindow) {
+    infoWindow.close()
+    infoWindow = null
+  }
+  if (mapInstance) {
+    mapInstance.destroy()
+    mapInstance = null
+  }
 }
 
 const drawRoute = () => {
@@ -160,11 +167,15 @@ const ensureMap = async () => {
 }
 
 const renderIfReady = async () => {
-  if (!canRenderInteractive.value || props.loading) {
-    clearOverlays()
+  if (!canRenderInteractive.value) {
+    destroyMap()
     return
   }
   await nextTick()
+  if (!mapContainer.value) {
+    destroyMap()
+    return
+  }
   await ensureMap()
   drawRoute()
 }
@@ -185,16 +196,24 @@ watch(
   { flush: 'post' },
 )
 
+watch(
+  canRenderInteractive,
+  (value) => {
+    if (!value) {
+      destroyMap()
+      return
+    }
+    void renderIfReady()
+  },
+  { flush: 'post' },
+)
+
 onMounted(() => {
   void renderIfReady()
 })
 
 onUnmounted(() => {
-  clearOverlays()
-  if (mapInstance) {
-    mapInstance.destroy()
-    mapInstance = null
-  }
+  destroyMap()
 })
 </script>
 
@@ -203,6 +222,7 @@ onUnmounted(() => {
   width: 100%;
 }
 
+.day-route-map__stage,
 .day-route-map__canvas,
 .day-route-map__placeholder {
   width: 100%;
@@ -210,19 +230,36 @@ onUnmounted(() => {
   border-radius: 22px;
 }
 
+.day-route-map__stage {
+  position: relative;
+  overflow: hidden;
+}
+
 .day-route-map__canvas {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.55);
 }
 
+.day-route-map__overlay,
 .day-route-map__placeholder {
   display: grid;
   place-items: center;
   gap: 12px;
   padding: 20px;
+  text-align: center;
+}
+
+.day-route-map__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(243, 246, 251, 0.82);
+  color: var(--brand-muted);
+  backdrop-filter: blur(4px);
+}
+
+.day-route-map__placeholder {
   background: rgba(243, 246, 251, 0.92);
   color: var(--brand-muted);
-  text-align: center;
 }
 
 .day-route-map__fallback {
@@ -238,4 +275,3 @@ onUnmounted(() => {
   font-size: 16px;
 }
 </style>
-
