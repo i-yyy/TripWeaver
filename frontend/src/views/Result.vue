@@ -366,9 +366,9 @@
           </div>
           <div class="skill-grid">
             <div v-for="skill in appliedSkills" :key="skill.key" class="reason-card skill-card">
-              <div class="reason-card__head">
-                <strong>{{ skill.name }}</strong>
-                <div class="toolbar-group">
+              <div class="reason-card__head skill-card__head">
+                <strong class="skill-card__title">{{ skill.name }}</strong>
+                <div class="toolbar-group skill-card__tags">
                   <a-tag color="blue">{{ skillLayerLabel(skill.layer) }}</a-tag>
                   <a-tag :color="skillCategoryColor(skill.category)">{{ skillCategoryLabel(skill.category) }}</a-tag>
                   <a-tag>{{ skillSourceLabel(skill.source) }}</a-tag>
@@ -1728,6 +1728,30 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
 
 .skill-card {
   margin-bottom: 0;
+  position: relative;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(241, 247, 255, 0.94));
+  border: 1px solid rgba(191, 214, 240, 0.82);
+  box-shadow:
+    0 12px 24px rgba(110, 153, 208, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.skill-card__head {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.skill-card__title {
+  flex: 0 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  line-height: 1.35;
+}
+
+.skill-card__tags {
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  gap: 6px;
 }
 
 @media (max-width: 960px) {

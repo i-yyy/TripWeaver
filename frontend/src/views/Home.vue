@@ -13,7 +13,6 @@
         <a-form class="brand-form-grid" layout="vertical" @submit.prevent="handleSubmit">
           <section class="planner-form-section planner-form-section--primary">
             <div class="planner-section-head planner-section-head--primary">
-              <span class="planner-section-mark">🧭</span>
               <div>
                 <h3>核心信息</h3>
                 <p>先把城市、日期和基础预算定下来，系统就能先搭好主骨架</p>
@@ -70,7 +69,6 @@
 
           <section class="planner-form-section">
             <div class="planner-section-head planner-section-head--preference">
-              <span class="planner-section-mark">🎒</span>
               <div>
                 <h3>偏好设置</h3>
                 <p>这些信息会影响推荐方向，让行程更贴近你的出行节奏</p>
@@ -104,7 +102,6 @@
 
           <section class="planner-form-section planner-form-section--compact">
             <div class="planner-section-head planner-section-head--note">
-              <span class="planner-section-mark">📝</span>
               <div>
                 <h3>补充说明</h3>
                 <p>如果你有节奏、天气或路线上的特别要求，可以在这里补充</p>
@@ -199,7 +196,7 @@ const budgetOptions = [
 ]
 
 const preferenceOptions = [
-  { value: 'history', label: '🏛️ 历史文化' },
+  { value: 'history', label: '🏛️历史文化' },
   { value: 'nature', label: '🌿 自然风光' },
   { value: 'food', label: '🍜 美食' },
   { value: 'shopping', label: '🛍️ 购物' },

@@ -1,28 +1,38 @@
 [
   {
-    "name": "北京_雨天亲子",
-    "query": "北京 雨天 亲子 室内 博物馆 科技馆",
-    "city": "beijing",
-    "tags": ["rainy_day", "family", "museum"],
-    "crowd_type": ["family"],
+    "name": "南京_历史人文漫游",
+    "query": "南京 历史 人文 博物馆 城市漫步 经典地标",
+    "city": "nanjing",
+    "tags": ["history", "museum", "citywalk"],
+    "crowd_type": ["solo", "friends", "couple"],
     "budget_level": "medium",
-    "expected_terms": ["rainy_day", "family", "museum", "室内", "亲子"]
+    "expected_terms": ["history", "museum", "citywalk", "总统府", "南京博物院"]
   },
   {
-    "name": "上海_citywalk美食",
-    "query": "上海 citywalk 美食 夜景 步行 地铁",
-    "city": "shanghai",
-    "tags": ["citywalk", "food", "night_view"],
-    "crowd_type": ["friends", "couple"],
+    "name": "苏州_园林慢节奏",
+    "query": "苏州 园林 慢节奏 情侣 江南 漫步",
+    "city": "suzhou",
+    "tags": ["garden", "citywalk", "slow_paced"],
+    "crowd_type": ["couple", "friends"],
     "budget_level": "medium",
-    "expected_terms": ["citywalk", "food", "night_view", "步行", "美食"]
+    "expected_terms": ["garden", "citywalk", "slow_paced", "拙政园", "平江路"]
   },
   {
-    "name": "北京_公共交通轻松",
-    "query": "北京 家庭 公共交通 轻松 低强度 行程",
-    "city": "beijing",
-    "tags": ["family"],
+    "name": "盐城_亲子湿地路线",
+    "query": "盐城 亲子 湿地 自然 低步行 观鸟",
+    "city": "yancheng",
+    "tags": ["nature", "family", "wetland"],
     "crowd_type": ["family"],
-    "expected_terms": ["family", "public_transit", "低强度", "亲子"]
+    "budget_level": "medium",
+    "expected_terms": ["family", "nature", "wetland", "丹顶鹤", "湿地"]
+  },
+  {
+    "name": "连云港_海边亲子轻松游",
+    "query": "连云港 海边 亲子 轻松 沙滩 夏季",
+    "city": "lianyungang",
+    "tags": ["coast", "family", "nature"],
+    "crowd_type": ["family", "friends"],
+    "budget_level": "medium",
+    "expected_terms": ["coast", "family", "nature", "连岛", "海边"]
   }
 ]
