@@ -1,12 +1,12 @@
 ﻿<template>
   <div class="brand-page">
     <div class="brand-shell">
-      <div class="glass-toolbar">
+        <div class="glass-toolbar">
+          <div class="toolbar-group">
+            <a-button size="large" @click="goBack">↩️ 返回旅行规划</a-button>
+          </div>
         <div class="toolbar-group">
-          <a-button size="large" @click="goBack">↩️ 返回旅行规划</a-button>
-          <a-button @click="goKBEval">🧪 RAG评测</a-button>
-        </div>
-        <div class="toolbar-group">
+          <a-button v-if="tripPlan" :loading="exportingPdf" @click="exportTripPlan">📄 导出 PDF</a-button>
           <a-button v-if="!editMode" @click="toggleEditMode">✏️ 编辑行程</a-button>
           <a-button v-if="editMode" type="primary" @click="saveChanges">💾 保存修改</a-button>
           <a-button v-if="editMode" @click="cancelEdit">↩️ 取消</a-button>
@@ -44,7 +44,7 @@
                 📌 推荐依据
               </button>
               <button
-                v-if="appliedSkills.length"
+                v-if="isDeveloperUser && appliedSkills.length"
                 type="button"
                 class="result-nav-button"
                 @click="scrollToSection('result-skills')"
@@ -57,8 +57,11 @@
           <div class="result-main-content">
         <section id="result-hero" class="glass-panel result-hero">
           <span class="page-kicker">🗓️ 行程结果</span>
-          <h1 class="page-title result-title">{{ tripPlan.city }} · {{ tripPlan.start_date }} 至 {{ tripPlan.end_date }}</h1>
-          <p class="page-subtitle">{{ tripPlan.overall_suggestions }}</p>
+          <h1 class="page-title result-title">{{ tripPlan.city }}</h1>
+          <p class="result-meta-line">{{ resultMetaLine }}</p>
+          <div class="result-hero-tags">
+            <span v-for="tag in resultHeroTags" :key="tag" class="result-hero-tag">{{ tag }}</span>
+          </div>
         </section>
 
         <section id="result-budget" v-if="tripPlan.budget" class="glass-panel glass-panel--soft result-panel">
@@ -297,67 +300,44 @@
             <h2>📌 推荐依据</h2>
             <p>这里展示本次行程生成时主要参考的画像与历史记忆</p>
           </div>
-          <div class="recommendation-layout">
-            <div class="recommendation-group">
-              <div class="section-heading compact-heading recommendation-group__heading">
-                <h3>👤 用户画像偏好</h3>
-              </div>
-              <div v-if="profileRecommendation" class="reason-card recommendation-main-card recommendation-main-card--profile">
-                <div class="reason-card__head">
+          <div class="recommendation-simple">
+            <article v-if="profileRecommendation" class="recommendation-strip">
+              <div class="recommendation-strip__top">
+                <div>
+                  <span class="recommendation-strip__label">👤 用户画像</span>
                   <strong>{{ formatRecommendationTitle(profileRecommendation) }}</strong>
-                  <div class="toolbar-group">
-                    <a-tag color="blue">用户画像</a-tag>
-                    <a-tag color="geekblue">评分 {{ formatScore(profileRecommendation.score) }}</a-tag>
-                  </div>
                 </div>
-                <div class="reason-score-hero">
-                  <span>画像分数</span>
-                  <strong>{{ formatScore(profileRecommendation.score) }}</strong>
-                </div>
-                <p><strong>摘要：</strong>{{ compactRecommendationText(profileRecommendation) }}</p>
+                <span class="recommendation-strip__score">评分 {{ formatScore(profileRecommendation.score) }}</span>
               </div>
-            </div>
+              <p>{{ compactRecommendationText(profileRecommendation) }}</p>
+            </article>
 
-            <div class="recommendation-group">
-              <div class="section-heading compact-heading recommendation-group__heading">
-                <h3>🧠 历史记忆</h3>
-              </div>
-
-              <div v-if="memoryRecommendationTotal" class="reason-card recommendation-main-card recommendation-main-card--memory">
-                <div class="reason-card__head">
+            <article v-if="memoryRecommendationTotal" class="recommendation-strip recommendation-strip--memory">
+              <div class="recommendation-strip__top">
+                <div>
+                  <span class="recommendation-strip__label">🧠 历史记忆</span>
                   <strong>{{ formatRecommendationTitle(memoryRecommendationTotal) }}</strong>
-                  <div class="toolbar-group">
-                    <a-tag color="blue">历史记忆</a-tag>
-                    <a-tag color="geekblue">评分 {{ formatScore(memoryRecommendationTotal.score) }}</a-tag>
-                  </div>
                 </div>
-                <div class="reason-score-hero reason-score-hero--memory">
-                  <span>记忆总分</span>
-                  <strong>{{ formatScore(memoryRecommendationTotal.score) }}</strong>
-                </div>
-                <p v-if="memoryBreakdownText(memoryRecommendationTotal)"><strong>构成：</strong>{{ memoryBreakdownText(memoryRecommendationTotal) }}</p>
+                <span class="recommendation-strip__score">评分 {{ formatScore(memoryRecommendationTotal.score) }}</span>
               </div>
-
-              <div class="memory-reason-grid">
-                <div v-for="item in memoryRecommendationItems" :key="formatRecommendationTitle(item)" class="reason-card memory-reason-card">
-                  <div class="reason-card__head">
-                    <strong>{{ formatRecommendationTitle(item) }}</strong>
-                    <a-tag color="geekblue">评分 {{ formatScore(item.score) }}</a-tag>
-                  </div>
-                  <div class="memory-reason-card__score">
-                    <span>子项分数</span>
-                    <strong>{{ formatScore(item.score) }}</strong>
-                  </div>
-                  <p><strong>摘要：</strong>{{ compactRecommendationText(item) }}</p>
+              <p>{{ compactRecommendationText(memoryRecommendationTotal) }}</p>
+              <div class="memory-inline-list">
+                <div
+                  v-for="item in memoryRecommendationItems"
+                  :key="formatRecommendationTitle(item)"
+                  class="memory-inline-item"
+                >
+                  <span>{{ memoryTypeLabel(normalizeMemoryType(item)) }}</span>
+                  <strong>{{ formatScore(item.score) }}</strong>
                 </div>
               </div>
-            </div>
+            </article>
           </div>
         </section>
 
         <section
           id="result-skills"
-          v-if="appliedSkills.length"
+          v-if="isDeveloperUser && appliedSkills.length"
           class="glass-panel glass-panel--soft result-panel"
         >
           <div class="section-heading">
@@ -375,7 +355,7 @@
                 </div>
               </div>
               <p v-if="skill.description"><strong>说明：</strong>{{ skill.description }}</p>
-              <p v-if="skill.matched_fields?.length"><strong>命中字段：</strong>{{ skill.matched_fields.join('、') }}</p>
+              <p v-if="skill.matched_fields?.length"><strong>命中字段：</strong>{{ formatMatchedFields(skill.matched_fields).join('、') }}</p>
               <p v-if="skill.matched_terms?.length"><strong>命中词：</strong>{{ skill.matched_terms.join('、') }}</p>
               <p v-if="skill.reasons?.length"><strong>触发原因：</strong>{{ skill.reasons.join('；') }}</p>
             </div>
@@ -392,6 +372,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
+import html2canvas from 'html2canvas'
+import { jsPDF } from 'jspdf'
 
 import DayRouteMap from '@/components/DayRouteMap.vue'
 import { getDayRouteDetail, submitFeedback } from '@/services/api'
@@ -405,21 +387,26 @@ import type {
   DayRouteSegment,
   FeedbackPayload,
   RecommendationReason,
+  TripFormData,
   TripPlan,
 } from '@/types'
 import { useAuthState } from '@/utils/auth'
 
 const router = useRouter()
 const authState = useAuthState()
+const isDeveloperUser = computed(() => authState.user?.is_developer === true)
 const tripPlan = ref<TripPlan | null>(null)
 const originalPlan = ref<TripPlan | null>(null)
 const editMode = ref(false)
 const currentUserId = ref(authState.user?.id || sessionStorage.getItem('tripPlannerUserId') || '')
 const currentSessionId = ref(sessionStorage.getItem('tripPlannerSessionId') || '')
+type TripPlannerSummary = Pick<TripFormData, 'budget_level' | 'travel_style' | 'companions' | 'mobility_needs' | 'transportation' | 'free_text_input'>
+const tripPlannerSummary = ref<TripPlannerSummary | null>(null)
 const activeDayKeys = ref<string[]>([])
 const routeDetails = ref<Record<number, DayRouteInfo>>({})
 const routeLoading = ref<Record<number, boolean>>({})
 const routeErrors = ref<Record<number, string>>({})
+const exportingPdf = ref(false)
 
 const getDaySectionId = (dayIndex: number) => `result-day-${dayIndex}`
 
@@ -446,6 +433,12 @@ const memoryTypeLabel = (memoryType?: string) => {
     semantic: '反馈记忆',
   }
   return mapping[String(memoryType || '').toLowerCase()] || String(memoryType || '其他记忆')
+}
+
+const MEMORY_SCORE_WEIGHTS: Record<string, number> = {
+  session: 1,
+  episodic: 1,
+  semantic: 1,
 }
 
 const normalizeChineseText = (value?: string) => {
@@ -511,19 +504,23 @@ const buildMemoryTotalReason = (items: RecommendationReason[]): RecommendationRe
       memory_type: memoryType,
       memory_label: memoryTypeLabel(memoryType),
       score: Number(matched?.score || 0),
+      weight: MEMORY_SCORE_WEIGHTS[memoryType] || 1,
     }
   })
+
+  const totalWeight = breakdown.reduce((sum, item) => sum + item.weight, 0) || 1
+  const weightedAverageScore = breakdown.reduce((sum, item) => sum + item.score * item.weight, 0) / totalWeight
 
   return {
     source_type: 'memory',
     title: '历史偏好记忆总分',
     reason: `当前共命中 ${breakdown.length} 类历史偏好记忆`,
     snippet: breakdown.map((item) => `${item.memory_label} ${item.score.toFixed(3)}`).join(' · '),
-    score: breakdown.reduce((sum, item) => sum + item.score, 0),
+    score: weightedAverageScore,
     rerank_mode: 'memory-summary',
     metadata: {
       memory_breakdown: breakdown,
-      memory_total_score: breakdown.reduce((sum, item) => sum + item.score, 0),
+      memory_total_score: weightedAverageScore,
     },
   }
 }
@@ -551,13 +548,13 @@ const displayRecommendationReasons = computed<RecommendationReason[]>(() => {
     return [...profileReasons, ...(emptyTotal ? [emptyTotal] : []), ...emptyPartials, ...otherReasons]
   }
 
-  const totalReason = memoryReasons.find((item) => isMemoryTotalReason(item)) || buildMemoryTotalReason(memoryReasons)
   const partialReasons = memoryReasons.filter((item) => !isMemoryTotalReason(item))
   const orderedPartials = ['session', 'episodic', 'semantic'].map(
     (memoryType) =>
       partialReasons.find((item) => normalizeMemoryType(item) === memoryType) || buildMemoryPlaceholderReason(memoryType),
   )
   const remainingPartials = partialReasons.filter((item) => !orderedPartials.includes(item))
+  const totalReason = buildMemoryTotalReason([...orderedPartials, ...remainingPartials])
 
   return [...profileReasons, ...(totalReason ? [totalReason] : []), ...orderedPartials, ...remainingPartials, ...otherReasons]
 })
@@ -663,11 +660,61 @@ const compactRecommendationText = (reason: RecommendationReason) => {
   return shortText(baseText || '暂无说明')
 }
 const appliedSkills = computed<AppliedSkill[]>(() => tripPlan.value?.applied_skills || [])
+const resultDateText = computed(() => {
+  if (!tripPlan.value) return ''
+  return `${tripPlan.value.start_date.replace(/-/g, '.')} - ${tripPlan.value.end_date.replace(/-/g, '.')}`
+})
+const resultDurationText = computed(() => {
+  if (!tripPlan.value) return ''
+  const dayCount = tripPlan.value.days.length || 1
+  const nightCount = Math.max(0, dayCount - 1)
+  return `${dayCount}天${nightCount}晚`
+})
+const resultBudgetText = computed(() => {
+  const mapping: Record<string, string> = {
+    low: '低预算',
+    medium: '中预算',
+    high: '高预算',
+  }
+  return mapping[String(tripPlannerSummary.value?.budget_level || '').toLowerCase()] || '预算待定'
+})
+const resultPaceText = computed(() => {
+  const styles = tripPlannerSummary.value?.travel_style || []
+  if (styles.includes('slow')) return '轻松节奏'
+  if (styles.includes('citywalk')) return '城市漫游'
+  if (styles.includes('checkin')) return '经典打卡'
+  if (styles.includes('local')) return '本地体验'
+  return '灵活节奏'
+})
+const resultMetaLine = computed(() =>
+  [resultDateText.value, resultDurationText.value, resultBudgetText.value, resultPaceText.value].filter(Boolean).join('｜'),
+)
+const resultHeroTags = computed(() => {
+  const summary = tripPlannerSummary.value
+  const tags: string[] = []
+  const weatherHasRain = travelWeatherInfo.value.some((item) => String(item.day_weather || '').includes('雨') || String(item.night_weather || '').includes('雨'))
+  const freeText = String(summary?.free_text_input || '')
+
+  if (summary?.companions?.includes('family')) tags.push('亲子友好')
+  if (summary?.mobility_needs?.some((item) => ['less_walking', 'wheelchair', 'rest_friendly'].includes(item))) tags.push('少步行')
+  if (freeText.includes('雨') || freeText.includes('下雨') || weatherHasRain) tags.push('雨天可调整')
+  if (String(summary?.transportation || '').toLowerCase().includes('public transit')) tags.push('地铁优先')
+
+  if (!tags.length) {
+    tags.push('灵活安排行程', '重点景点优先', '路线更顺路', '预算更清晰')
+  }
+
+  return tags.slice(0, 4)
+})
 
 onMounted(() => {
   const data = sessionStorage.getItem('tripPlan')
   if (data) {
     tripPlan.value = JSON.parse(data)
+  }
+  const summary = sessionStorage.getItem('tripPlannerSummary')
+  if (summary) {
+    tripPlannerSummary.value = JSON.parse(summary)
   }
 })
 
@@ -858,8 +905,6 @@ const handleDayPanelsChange = (keys: string | number | Array<string | number>) =
 }
 
 const goBack = () => router.push('/planner')
-const goKBEval = () => router.push('/kb-eval')
-
 const toggleEditMode = () => {
   if (!tripPlan.value) return
   editMode.value = true
@@ -961,6 +1006,217 @@ const submitPlanFeedback = async (feedbackType: 'satisfied' | 'unsatisfied') => 
   }
 }
 
+const sanitizeFileName = (value: string) =>
+  String(value || 'trip-plan')
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '-')
+    .replace(/\s+/g, '-')
+
+const escapeHtml = (value?: string | number | null) =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const exportTripPlan = async () => {
+  if (!tripPlan.value || exportingPdf.value) return
+
+  exportingPdf.value = true
+  try {
+    const plan = tripPlan.value
+    const tagHtml = resultHeroTags.value.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('')
+
+    const budgetHtml = plan.budget
+      ? `
+        <section class="section">
+          <h2>预算汇总</h2>
+          <div class="grid grid-5">
+            <div class="stat"><span>景点</span><strong>${escapeHtml(currency(plan.budget.total_attractions))}</strong></div>
+            <div class="stat"><span>酒店</span><strong>${escapeHtml(currency(plan.budget.total_hotels))}</strong></div>
+            <div class="stat"><span>餐饮</span><strong>${escapeHtml(currency(plan.budget.total_meals))}</strong></div>
+            <div class="stat"><span>交通</span><strong>${escapeHtml(currency(plan.budget.total_transportation))}</strong></div>
+            <div class="stat"><span>总计</span><strong>${escapeHtml(currency(plan.budget.total))}</strong></div>
+          </div>
+        </section>
+      `
+      : ''
+
+    const daysHtml = plan.days
+      .map((day) => {
+        const hotelHtml = day.hotel
+          ? `
+            <div class="subsection">
+              <h4>酒店推荐</h4>
+              <div class="list-card">
+                <strong>${escapeHtml(day.hotel.name || '暂无')}</strong>
+                <p>地址：${escapeHtml(day.hotel.address || '暂无')}</p>
+                <p>类型：${escapeHtml(hotelTypeLabel(day.hotel.type))}</p>
+                <p>价格区间：${escapeHtml(priceRangeLabel(day.hotel.price_range))}</p>
+                <p>参考价格：${escapeHtml(currency(day.hotel.estimated_cost))}/晚</p>
+              </div>
+            </div>
+          `
+          : ''
+
+        const attractionsHtml = day.attractions.length
+          ? `
+            <div class="subsection">
+              <h4>景点安排</h4>
+              ${day.attractions
+                .map(
+                  (item, index) => `
+                    <div class="list-card">
+                      <strong>${index + 1}. ${escapeHtml(item.name)}</strong>
+                      <p>地址：${escapeHtml(item.address || '暂无')}</p>
+                      <p>建议停留：${escapeHtml(item.visit_duration)} 分钟</p>
+                      <p>门票参考：${escapeHtml(currency(item.ticket_price))}</p>
+                      <p>描述：${escapeHtml(item.description || '暂无说明')}</p>
+                    </div>
+                  `,
+                )
+                .join('')}
+            </div>
+          `
+          : ''
+
+        const mealsHtml = day.meals.length
+          ? `
+            <div class="subsection">
+              <h4>餐厅推荐</h4>
+              ${day.meals
+                .map(
+                  (item) => `
+                    <div class="list-card">
+                      <strong>${escapeHtml(mealLabel(item.type))} · ${escapeHtml(item.name)}</strong>
+                      <p>人均预算：${escapeHtml(currency(item.estimated_cost))}</p>
+                      <p>推荐理由：${escapeHtml(item.description || '暂无说明')}</p>
+                    </div>
+                  `,
+                )
+                .join('')}
+            </div>
+          `
+          : ''
+
+        return `
+          <section class="section">
+            <h2>第 ${escapeHtml(day.day_index + 1)} 天 · ${escapeHtml(day.date)}</h2>
+            <div class="summary">
+              <p>当日概览：${escapeHtml(day.description || '暂无')}</p>
+              <p>交通方式：${escapeHtml(transportationLabel(day.transportation))}</p>
+              <p>交通费用：${escapeHtml(currency(day.transportation_cost))}</p>
+              <p>住宿安排：${escapeHtml(accommodationLabel(day.accommodation))}</p>
+              <p>路线摘要：${escapeHtml(day.route_summary || '暂无路线摘要')}</p>
+            </div>
+            ${hotelHtml}
+            ${attractionsHtml}
+            ${mealsHtml}
+          </section>
+        `
+      })
+      .join('')
+
+    const weatherHtml = travelWeatherInfo.value.length
+      ? `
+        <section class="section">
+          <h2>天气信息</h2>
+          ${travelWeatherInfo.value
+            .map(
+              (item) => `
+                <div class="list-card">
+                  <strong>${escapeHtml(item.date)}</strong>
+                  <p>白天：${escapeHtml(item.day_weather)} ${escapeHtml(item.day_temp)}°C</p>
+                  <p>夜间：${escapeHtml(item.night_weather)} ${escapeHtml(item.night_temp)}°C</p>
+                  <p>风向风力：${escapeHtml(item.wind_direction)}风 ${escapeHtml(item.wind_power)}</p>
+                </div>
+              `,
+            )
+            .join('')}
+        </section>
+      `
+      : ''
+
+    const container = document.createElement('div')
+    container.style.position = 'fixed'
+    container.style.left = '-100000px'
+    container.style.top = '0'
+    container.style.width = '900px'
+    container.style.background = '#ffffff'
+    container.innerHTML = `
+      <div style="font-family:'Microsoft YaHei','PingFang SC','Noto Sans SC',sans-serif;color:#17324f;padding:32px;background:#ffffff;">
+        <style>
+          .hero { padding: 24px 28px; border-radius: 24px; background: linear-gradient(135deg, #eef6ff, #dfeeff); border: 1px solid #d3e6fb; }
+          .hero h1 { margin: 0; font-size: 40px; line-height: 1.2; color: #17324f; }
+          .hero .meta { margin: 12px 0 0; color: #5f7893; font-size: 18px; font-weight: 600; }
+          .tags { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+          .tag { padding: 9px 14px; border-radius: 999px; background: #ffffff; border: 1px solid #cfe1f5; color: #2a74c8; font-size: 14px; font-weight: 800; }
+          .section { margin-top: 24px; }
+          .section h2 { margin: 0 0 14px; font-size: 24px; color: #17324f; }
+          .subsection { margin-top: 14px; }
+          .subsection h4 { margin: 0 0 10px; font-size: 18px; color: #17324f; }
+          .grid { display: grid; gap: 12px; }
+          .grid-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+          .stat, .summary, .list-card { padding: 14px 16px; border-radius: 18px; background: #f8fbff; border: 1px solid #dceaf8; }
+          .stat span { display: block; color: #64819d; font-size: 14px; font-weight: 700; }
+          .stat strong { display: block; margin-top: 6px; font-size: 20px; color: #17324f; }
+          .summary p, .list-card p { margin: 6px 0 0; color: #4f6781; font-size: 15px; line-height: 1.65; }
+          .list-card { margin-top: 10px; }
+          .list-card strong { display: block; color: #17324f; font-size: 17px; line-height: 1.45; }
+        </style>
+        <section class="hero">
+          <h1>${escapeHtml(plan.city)}</h1>
+          <p class="meta">${escapeHtml(resultMetaLine.value)}</p>
+          <div class="tags">${tagHtml}</div>
+        </section>
+        ${budgetHtml}
+        ${daysHtml}
+        ${weatherHtml}
+      </div>
+    `
+
+    document.body.appendChild(container)
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+
+    const canvas = await html2canvas(container, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+    })
+
+    document.body.removeChild(container)
+
+    const pdf = new jsPDF('p', 'mm', 'a4')
+    const pageWidth = pdf.internal.pageSize.getWidth()
+    const pageHeight = pdf.internal.pageSize.getHeight()
+    const margin = 8
+    const renderWidth = pageWidth - margin * 2
+    const renderHeight = (canvas.height * renderWidth) / canvas.width
+    const imageData = canvas.toDataURL('image/png')
+
+    let heightLeft = renderHeight
+    let position = margin
+    pdf.addImage(imageData, 'PNG', margin, position, renderWidth, renderHeight, undefined, 'FAST')
+    heightLeft -= pageHeight - margin * 2
+
+    while (heightLeft > 0) {
+      pdf.addPage()
+      position = margin - (renderHeight - heightLeft)
+      pdf.addImage(imageData, 'PNG', margin, position, renderWidth, renderHeight, undefined, 'FAST')
+      heightLeft -= pageHeight - margin * 2
+    }
+
+    pdf.save(`${sanitizeFileName(plan.city)}-${plan.start_date}-旅行规划.pdf`)
+    message.success('已导出 PDF')
+  } catch (error) {
+    console.error(error)
+    message.error('导出 PDF 失败')
+  } finally {
+    exportingPdf.value = false
+  }
+}
+
 const mealLabel = (type: string) => {
   const mapping: Record<string, string> = {
     breakfast: '早餐',
@@ -1043,6 +1299,23 @@ const skillCategoryColor = (category?: string) => {
   }
   return mapping[String(category || '').toLowerCase()] || 'default'
 }
+
+const skillFieldLabel = (field?: string) => {
+  const mapping: Record<string, string> = {
+    tags: '兴趣标签',
+    keywords: '关键词',
+    budget_level: '预算等级',
+    transportation: '交通方式',
+    companions: '同行人群',
+    dietary: '饮食限制',
+    mobility: '行动需求',
+    date: '出行日期',
+    weather: '天气条件',
+  }
+  return mapping[String(field || '').trim().toLowerCase()] || String(field || '')
+}
+
+const formatMatchedFields = (fields?: string[]) => (fields || []).map((item) => skillFieldLabel(item))
 
 const skillSourceLabel = (source?: string) => {
   const mapping: Record<string, string> = {
@@ -1178,6 +1451,34 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
   font-weight: 800;
 }
 
+.result-meta-line {
+  margin: 0;
+  color: #5f7893;
+  font-size: 20px;
+  line-height: 1.7;
+  font-weight: 600;
+}
+
+.result-hero-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.result-hero-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(187, 214, 243, 0.82);
+  color: #2a74c8;
+  font-size: 16px;
+  font-weight: 800;
+  box-shadow: 0 8px 18px rgba(99, 144, 199, 0.08);
+}
+
 .result-hero .page-kicker {
   font-size: 17px;
 }
@@ -1199,111 +1500,83 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
   border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
-.recommendation-layout {
+.recommendation-simple {
   display: grid;
-  gap: 22px;
-}
-
-.recommendation-group {
-  display: grid;
-  gap: 16px;
-  padding: 20px;
-  border-radius: 24px;
-  border: 1px solid rgba(201, 220, 242, 0.72);
-  background: linear-gradient(135deg, rgba(249, 252, 255, 0.84), rgba(235, 244, 255, 0.82));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
-}
-
-.recommendation-group__heading {
-  margin-bottom: 0;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(132, 173, 220, 0.28);
-}
-
-.recommendation-main-card {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(236, 244, 255, 0.94));
-  border: 1px solid rgba(172, 203, 240, 0.82);
-  box-shadow: 0 12px 24px rgba(122, 166, 217, 0.1);
-}
-
-.reason-score-hero {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.reason-score-hero span {
-  color: var(--brand-muted);
-  font-size: 17px;
-  font-weight: 600;
-}
-
-.reason-score-hero strong {
-  color: #17324f;
-  font-size: 26px;
-  font-weight: 800;
-}
-
-.recommendation-main-card--profile .reason-score-hero {
-  background: linear-gradient(135deg, rgba(224, 239, 255, 0.9), rgba(245, 249, 255, 0.96));
-  border: 1px solid rgba(184, 210, 243, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-}
-
-.recommendation-main-card--memory .reason-score-hero,
-.reason-score-hero--memory {
-  background: linear-gradient(135deg, rgba(227, 240, 255, 0.9), rgba(246, 250, 255, 0.96));
-  border: 1px solid rgba(188, 213, 243, 0.72);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
-}
-
-.memory-reason-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
-.memory-reason-card {
-  min-height: 100%;
-  background: rgba(255, 255, 255, 0.72);
-  border-color: rgba(196, 217, 243, 0.78);
+.recommendation-strip {
+  display: grid;
+  gap: 10px;
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(252, 254, 255, 0.92), rgba(236, 245, 255, 0.88));
+  border: 1px solid rgba(188, 213, 243, 0.76);
 }
 
-.memory-reason-card:nth-child(1) .memory-reason-card__score {
-  background: rgba(231, 242, 255, 0.82);
+.recommendation-strip--memory {
+  background: linear-gradient(135deg, rgba(248, 252, 255, 0.94), rgba(232, 242, 255, 0.9));
 }
 
-.memory-reason-card:nth-child(2) .memory-reason-card__score {
-  background: rgba(237, 246, 255, 0.82);
-}
-
-.memory-reason-card:nth-child(3) .memory-reason-card__score {
-  background: linear-gradient(135deg, rgba(229, 240, 255, 0.9), rgba(244, 249, 255, 0.92));
-}
-
-.memory-reason-card__score {
+.recommendation-strip__top {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 10px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(234, 242, 255, 0.7);
+  gap: 12px;
 }
 
-.memory-reason-card__score span {
-  color: var(--brand-muted);
-  font-size: 17px;
-  font-weight: 600;
+.recommendation-strip__top strong {
+  display: block;
+  color: #17324f;
+  font-size: 20px;
+  line-height: 1.35;
 }
 
-.memory-reason-card__score strong {
+.recommendation-strip__label {
+  display: inline-flex;
+  margin-bottom: 6px;
+  color: #5f7f9e;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.recommendation-strip__score {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.8);
+  color: #2a74c8;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.memory-inline-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.memory-inline-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(201, 220, 242, 0.72);
+}
+
+.memory-inline-item span {
+  color: #637d99;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.memory-inline-item strong {
   color: #245184;
-  font-size: 21px;
+  font-size: 18px;
   font-weight: 800;
 }
 
@@ -1812,12 +2085,8 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
     grid-template-columns: 1fr;
   }
 
-  .memory-reason-grid {
+  .memory-inline-list {
     grid-template-columns: 1fr;
-  }
-
-  .recommendation-group {
-    padding: 16px;
   }
 
   .weather-card__date {

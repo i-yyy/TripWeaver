@@ -8,7 +8,7 @@ import Profile from '@/views/Profile.vue'
 import Register from '@/views/Register.vue'
 import Result from '@/views/Result.vue'
 import Tracks from '@/views/Tracks.vue'
-import { isAuthenticated } from '@/utils/auth'
+import { isAuthenticated, useAuthState } from '@/utils/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -20,14 +20,18 @@ const router = createRouter({
     { path: '/result', name: 'Result', component: Result, meta: { requiresAuth: true } },
     { path: '/profile', name: 'Profile', component: Profile, meta: { requiresAuth: true } },
     { path: '/tracks', name: 'Tracks', component: Tracks, meta: { requiresAuth: true } },
-    { path: '/kb-eval', name: 'KBEval', component: KBEval, meta: { requiresAuth: true } },
+    { path: '/kb-eval', name: 'KBEval', component: KBEval, meta: { requiresAuth: true, requiresDeveloper: true } },
   ],
 })
 
 router.beforeEach((to) => {
   const authed = isAuthenticated()
+  const authState = useAuthState()
   if (to.meta.requiresAuth && !authed) {
     return '/login'
+  }
+  if (to.meta.requiresDeveloper && authState.user?.is_developer === false) {
+    return '/planner'
   }
   if (to.meta.publicOnly && authed && to.path !== '/') {
     return '/'

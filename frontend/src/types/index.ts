@@ -226,6 +226,7 @@ export interface AuthUserData {
   email: string
   nickname: string
   is_active: boolean
+  is_developer?: boolean
   created_at?: string
 }
 

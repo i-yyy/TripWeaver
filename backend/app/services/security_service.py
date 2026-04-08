@@ -97,3 +97,12 @@ async def get_current_user(
             detail="User is unavailable",
         )
     return user
+
+
+async def require_developer_user(current_user: User = Depends(get_current_user)) -> User:
+    if not get_auth_service().is_developer_email(current_user.email):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Developer access required",
+        )
+    return current_user

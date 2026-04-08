@@ -12,7 +12,7 @@
   --brand-primary-soft: rgba(45, 134, 231, 0.12);
   --brand-line: rgba(189, 211, 236, 0.72);
   --brand-glow: rgba(117, 177, 242, 0.28);
-  --brand-shell-width: 1360px;
+  --brand-shell-width: 1440px;
   --brand-radius-xl: 30px;
   --brand-radius-lg: 24px;
   --brand-radius-md: 18px;
@@ -22,6 +22,11 @@ html,
 body,
 #app {
   min-height: 100%;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -56,7 +61,7 @@ select {
 .brand-page {
   position: relative;
   min-height: 100vh;
-  padding: 28px 20px 40px;
+  padding: 20px 20px 32px;
   overflow: hidden;
 }
 
@@ -591,7 +596,7 @@ select {
 
 @media (max-width: 960px) {
   .brand-page {
-    padding: 20px 14px 30px;
+    padding: 16px 14px 24px;
   }
 
   .split-layout {

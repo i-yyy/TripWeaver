@@ -10,9 +10,9 @@
     <div class="brand-shell auth-grid">
       <section class="glass-panel auth-copy-panel">
         <span class="page-kicker">欢迎回来</span>
-        <h1 class="page-title auth-title">继续你的旅程，把每一次出发都安排得更顺一点</h1>
+        <h1 class="page-title auth-title">欢迎回来</h1>
         <p class="page-subtitle">
-          登录后，我们会接住你之前保存的偏好、旅行轨迹和规划记录 下一次想出发的时候，直接从熟悉的节奏开始
+          继续你的旅行规划、轨迹和个人偏好
         </p>
 
         <div class="info-list auth-highlights">
@@ -58,15 +58,13 @@
             </div>
           </div>
 
-          <div class="auth-support-grid">
-            <div class="auth-support-card">
-              <strong>继续你的旅行记录</strong>
-              <span>登录后可以直接查看旅行轨迹、历史规划和反馈记录</span>
-            </div>
-            <div class="auth-support-card">
-              <strong>账号信息随时可改</strong>
-              <span>进入个人设置后，可以继续调整昵称、邮箱和密码</span>
-            </div>
+          <div class="auth-emoji-cluster" aria-hidden="true">
+            <span class="auth-emoji">✈️</span>
+            <span class="auth-emoji">🧳</span>
+            <span class="auth-emoji">🗺️</span>
+            <span class="auth-emoji">📍</span>
+            <span class="auth-emoji">📸</span>
+            <span class="auth-emoji">☁️</span>
           </div>
         </div>
       </section>
@@ -185,12 +183,15 @@ const handleLogin = async () => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  min-height: 620px;
   padding: 34px;
 }
 
 .auth-title {
   max-width: 620px;
   font-size: clamp(38px, 4.6vw, 62px);
+  color: #6aaeea;
+  font-weight: 800;
 }
 
 .auth-highlights {
@@ -255,28 +256,45 @@ const handleLogin = async () => {
   color: var(--brand-muted);
 }
 
-.auth-support-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+.auth-emoji-cluster {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 14px;
+  padding: 8px 4px 0;
 }
 
-.auth-support-card {
-  padding: 16px 18px;
+.auth-emoji {
+  display: inline-grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.46);
   border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 14px 28px rgba(76, 116, 170, 0.08);
+  font-size: 26px;
+  animation: float-soft 5.4s ease-in-out infinite;
 }
 
-.auth-support-card strong {
-  display: block;
-  margin-bottom: 6px;
-  color: var(--brand-text);
+.auth-emoji:nth-child(2) {
+  animation-delay: 0.4s;
 }
 
-.auth-support-card span {
-  color: var(--brand-muted);
-  line-height: 1.7;
+.auth-emoji:nth-child(3) {
+  animation-delay: 0.8s;
+}
+
+.auth-emoji:nth-child(4) {
+  animation-delay: 1.2s;
+}
+
+.auth-emoji:nth-child(5) {
+  animation-delay: 1.6s;
+}
+
+.auth-emoji:nth-child(6) {
+  animation-delay: 2s;
 }
 
 @media (max-width: 960px) {
@@ -291,6 +309,7 @@ const handleLogin = async () => {
 
   .auth-copy-panel,
   .auth-form-panel {
+    min-height: auto;
     padding: 24px;
   }
 
@@ -298,8 +317,11 @@ const handleLogin = async () => {
     max-width: none;
   }
 
-  .auth-support-grid {
-    grid-template-columns: 1fr;
+  .auth-emoji {
+    width: 50px;
+    height: 50px;
+    border-radius: 16px;
+    font-size: 24px;
   }
 
   .auth-decor {

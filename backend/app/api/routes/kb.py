@@ -5,13 +5,14 @@ from __future__ import annotations
 from statistics import mean
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ...services.knowledge_base_service import get_knowledge_base_service
 from ...services.reranker_service import get_reranker_service
+from ...services.security_service import require_developer_user
 
-router = APIRouter(prefix="/kb", tags=["知识库"])
+router = APIRouter(prefix="/kb", tags=["知识库"], dependencies=[Depends(require_developer_user)])
 
 
 class KBIngestRequest(BaseModel):

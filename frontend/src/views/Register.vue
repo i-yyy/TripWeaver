@@ -10,9 +10,9 @@
     <div class="brand-shell auth-grid">
       <section class="glass-panel auth-copy-panel">
         <span class="page-kicker">新的故事，从这里开始</span>
-        <h1 class="page-title auth-title">注册一个账号，让旅行偏好、轨迹和反馈都被好好记住</h1>
+        <h1 class="page-title auth-title">创建账号，留下属于你的旅行节奏</h1>
         <p class="page-subtitle">
-          以后每次规划都不再从零开始 系统会慢慢懂你的旅行节奏，也会把每一次搜索留下来的线索整理成更贴近你的建议
+          注册后，系统会持续记录你的规划、偏好与足迹。
         </p>
 
         <div class="info-list auth-highlights">
@@ -169,19 +169,24 @@ const handleRegister = async () => {
 
 .auth-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: min(1160px, 100%);
   gap: 22px;
   align-items: stretch;
 }
 
 .auth-copy-panel,
 .auth-form-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 620px;
   padding: 34px;
 }
 
 .auth-title {
   max-width: 620px;
-  font-size: clamp(38px, 4.6vw, 62px);
+  font-size: clamp(30px, 3.8vw, 50px);
+  font-weight: 800;
 }
 
 .auth-highlights {
@@ -189,7 +194,10 @@ const handleRegister = async () => {
 }
 
 .auth-form-panel {
-  align-self: center;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .auth-switch-row {
@@ -208,6 +216,7 @@ const handleRegister = async () => {
 
   .auth-copy-panel,
   .auth-form-panel {
+    min-height: auto;
     padding: 24px;
   }
 

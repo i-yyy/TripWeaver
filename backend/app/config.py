@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "dev-secret-key-change-me-before-production-1234567890"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60 * 24 * 7
+    developer_email_whitelist: str = ""
 
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
@@ -96,6 +97,9 @@ class Settings(BaseSettings):
 
     def get_cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    def get_developer_email_whitelist_list(self) -> List[str]:
+        return [email.strip().lower() for email in self.developer_email_whitelist.split(",") if email.strip()]
 
 
 settings = Settings()

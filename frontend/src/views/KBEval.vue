@@ -5,7 +5,8 @@
         <div class="glass-toolbar">
           <div class="section-heading">
             <span class="page-kicker">🧪 RAG评测</span>
-            <h1 class="page-title kb-title">观察知识库召回和重排的表现，看看推荐依据是否更聪明了</h1>
+            <h1 class="page-title kb-title">查看知识库召回、重排与推荐依据表现</h1>
+            <div class="dev-flag">开发者视图</div>
             <p class="page-subtitle">这个页面主要用来做调试和评估，适合对比不同查询词、标签过滤和重排模式的效果</p>
           </div>
         </div>
@@ -130,14 +131,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
+import { useRouter } from 'vue-router'
 
-import { evaluateKnowledgeBase } from '@/services/api'
+import { evaluateKnowledgeBase, getCurrentUser } from '@/services/api'
 import type { KBEvaluateResponse } from '@/types'
+import { updateStoredUser, useAuthState } from '@/utils/auth'
 
 type QuickCaseType = 'beijing_rainy_family' | 'shanghai_citywalk_food' | 'beijing_light_family'
 
+const router = useRouter()
+const authState = useAuthState()
 const loading = ref(false)
 const result = ref<KBEvaluateResponse | null>(null)
 
@@ -304,6 +309,27 @@ const runEvaluation = async () => {
     loading.value = false
   }
 }
+
+onMounted(async () => {
+  if (authState.user?.is_developer === true) {
+    return
+  }
+
+  try {
+    const response = await getCurrentUser()
+    if (response.success && response.data) {
+      updateStoredUser(response.data)
+      if (response.data.is_developer) {
+        return
+      }
+    }
+  } catch {
+    // Ignore here and redirect below.
+  }
+
+  message.warning('这个页面仅对开发者开放')
+  router.replace('/planner')
+})
 </script>
 
 <style scoped>
@@ -313,6 +339,20 @@ const runEvaluation = async () => {
 
 .kb-title {
   font-size: clamp(34px, 4.2vw, 52px);
+}
+
+.dev-flag {
+  display: inline-flex;
+  align-items: center;
+  margin: 8px 0 2px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(29, 93, 155, 0.12);
+  border: 1px solid rgba(29, 93, 155, 0.22);
+  color: #1d5d9b;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
 }
 
 .kb-form {
@@ -394,4 +434,3 @@ const runEvaluation = async () => {
   }
 }
 </style>
-

@@ -13,6 +13,7 @@ class AuthUserData(BaseModel):
     email: str
     nickname: str
     is_active: bool = True
+    is_developer: bool = False
     created_at: Optional[datetime] = None
 
 

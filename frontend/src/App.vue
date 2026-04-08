@@ -6,16 +6,26 @@
           <button class="brand-button" type="button" @click="goBrandHome">智能旅行助手</button>
           <div class="app-nav">
             <template v-if="authenticated">
-              <span class="account-text">已登录账号：{{ authState.user?.nickname || authState.user?.email || '旅行者' }}</span>
+              <div class="account-meta">
+                <span class="account-text">已登录账号：{{ authState.user?.nickname || authState.user?.email || '旅行者' }}</span>
+                <span v-if="isDeveloperUser" class="developer-badge">开发者</span>
+              </div>
               <a-button type="text" :class="navButtonClass('/planner')" @click="goPlanner">🧭 旅行规划</a-button>
               <a-button type="text" :class="navButtonClass('/tracks')" @click="goTracks">🗺️ 旅行轨迹</a-button>
-              <a-button type="text" :class="navButtonClass('/kb-eval')" @click="goKBEval">🧪 RAG评测</a-button>
+              <a-button
+                v-if="isDeveloperUser"
+                type="text"
+                :class="navButtonClass('/kb-eval')"
+                @click="goKBEval"
+              >
+                🧪 RAG评测
+              </a-button>
               <a-button type="text" :class="navButtonClass('/profile')" @click="goProfile">👤 个人设置</a-button>
               <a-button @click="logout">🚪 退出登录</a-button>
             </template>
             <template v-else>
-              <a-button type="text" class="nav-btn" @click="goLogin">🔑 登录</a-button>
-              <a-button type="primary" @click="goRegister">✨ 注册</a-button>
+              <a-button type="text" :class="navButtonClass('/login')" @click="goLogin">🔑 登录</a-button>
+              <a-button type="text" :class="navButtonClass('/register')" @click="goRegister">✨ 注册</a-button>
             </template>
           </div>
         </div>
@@ -28,16 +38,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { clearAuthSession, useAuthState } from '@/utils/auth'
+import { getCurrentUser } from '@/services/api'
+import { clearAuthSession, updateStoredUser, useAuthState } from '@/utils/auth'
 
 const router = useRouter()
 const route = useRoute()
 const authState = useAuthState()
 
 const authenticated = computed(() => Boolean(authState.token && authState.user))
+const isDeveloperUser = computed(() => authState.user?.is_developer === true)
 const showAppHeader = computed(() => route.path !== '/')
 const navButtonClass = (path: string) => ({
   'nav-btn': true,
@@ -59,6 +71,34 @@ const logout = () => {
   sessionStorage.removeItem('tripPlannerUserId')
   router.push('/')
 }
+
+onMounted(async () => {
+  if (!authenticated.value) return
+  if (typeof authState.user?.is_developer === 'boolean') return
+  tryRefreshCurrentUser()
+})
+
+const tryRefreshCurrentUser = async () => {
+  try {
+    const response = await getCurrentUser()
+    if (response.success && response.data) {
+      updateStoredUser(response.data)
+    }
+  } catch {
+    // Let the auth interceptor handle invalid sessions silently.
+  }
+}
+
+watch(
+  () => [authenticated.value, authState.user?.id, authState.user?.is_developer] as const,
+  ([isAuthed, userId, isDeveloper]) => {
+    if (!isAuthed || !userId || typeof isDeveloper === 'boolean') {
+      return
+    }
+    void tryRefreshCurrentUser()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
@@ -107,10 +147,30 @@ const logout = () => {
   gap: 10px;
 }
 
+.account-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .account-text {
   color: rgba(71, 89, 112, 0.78);
   font-size: 16px;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.developer-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(29, 93, 155, 0.14);
+  color: #1d5d9b;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
@@ -150,6 +210,12 @@ const logout = () => {
 
   .app-nav {
     justify-content: center;
+  }
+
+  .account-meta {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   .account-text {

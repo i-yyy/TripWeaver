@@ -94,7 +94,14 @@ AMAP_API_KEY=你的高德Web服务Key
 OPENAI_API_KEY=你的模型Key
 OPENAI_BASE_URL=你的模型网关地址(可选)
 OPENAI_MODEL=模型名(可选)
+DEVELOPER_EMAIL_WHITELIST=your-email@example.com,teammate@example.com
 ```
+
+如果你希望区分普通用户和开发者，可以配置 `DEVELOPER_EMAIL_WHITELIST`：
+
+- 白名单中的邮箱登录后会显示 `RAG评测` 入口
+- 非白名单用户不会显示该入口，访问 `/kb-eval` 和相关 KB 评测接口时也会被拦截
+- 多个邮箱用英文逗号分隔，邮箱会按小写比较
 
 然后启动后端：
 
@@ -114,7 +121,7 @@ npm run dev
 浏览器打开：
 
 - 行程页：`http://localhost:5173/`
-- RAG评测页：`http://localhost:5173/kb-eval`
+- RAG评测页：`http://localhost:5173/kb-eval`（仅开发者白名单邮箱可见）
 
 ### 完整功能（含向量入库）可选步骤
 

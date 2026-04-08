@@ -36,6 +36,10 @@ export function isAuthenticated() {
   return Boolean(authState.token && authState.user)
 }
 
+export function isDeveloper() {
+  return authState.user?.is_developer === true
+}
+
 export function setAuthSession(token: string, user: AuthUserData) {
   authState.token = token
   authState.user = user

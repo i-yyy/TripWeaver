@@ -9,6 +9,12 @@ from ..models.schemas import MemoryFact, RecommendationReason, TripRequest
 from .knowledge_base_service import get_knowledge_base_service
 from .reranker_service import get_reranker_service
 
+MEMORY_SCORE_WEIGHTS = {
+    "session": 1.0,
+    "episodic": 1.0,
+    "semantic": 1.0,
+}
+
 
 class RetrieverService:
     """负责召回、重排和 RAG 上下文拼装"""
@@ -239,10 +245,12 @@ class RetrieverService:
                     "memory_type": memory_type,
                     "memory_label": RetrieverService._memory_type_label(memory_type),
                     "score": float(memory.importance_score or 0.0),
+                    "weight": float(MEMORY_SCORE_WEIGHTS.get(memory_type, 1.0)),
                 }
             )
 
-        total_score = sum(item["score"] for item in breakdown)
+        total_weight = sum(float(item.get("weight", 1.0)) for item in breakdown) or 1.0
+        total_score = sum(float(item["score"]) * float(item.get("weight", 1.0)) for item in breakdown) / total_weight
         summary_text = " · ".join(f"{item['memory_label']} {item['score']:.3f}" for item in breakdown)
 
         reasons = [

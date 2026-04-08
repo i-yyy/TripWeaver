@@ -7,6 +7,7 @@ from typing import Optional
 
 from sqlmodel import delete, select
 
+from ..config import get_settings
 from ..db.database import session_scope
 from ..db.models import MemoryItem, TripHistory, User, UserFeedback, UserProfile
 from ..models.auth_schemas import AuthUserData, UpdateProfileRequest
@@ -14,9 +15,18 @@ from .profile_service import get_profile_service
 
 
 class AuthService:
+    def __init__(self) -> None:
+        self.settings = get_settings()
+
     @staticmethod
     def _utcnow() -> datetime:
         return datetime.now(timezone.utc)
+
+    def is_developer_email(self, email: str | None) -> bool:
+        normalized_email = (email or "").strip().lower()
+        if not normalized_email:
+            return False
+        return normalized_email in self.settings.get_developer_email_whitelist_list()
 
     def get_user_by_id(self, user_id: str) -> Optional[User]:
         with session_scope() as session:
@@ -106,11 +116,13 @@ class AuthService:
 
     @staticmethod
     def to_user_data(user: User) -> AuthUserData:
+        auth_service = get_auth_service()
         return AuthUserData(
             id=user.id,
             email=user.email or "",
             nickname=user.nickname or "",
             is_active=bool(user.is_active),
+            is_developer=auth_service.is_developer_email(user.email),
             created_at=user.created_at,
         )
 
