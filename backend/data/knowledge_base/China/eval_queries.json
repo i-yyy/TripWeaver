@@ -1,0 +1,28 @@
+[
+  {
+    "name": "北京_雨天亲子",
+    "query": "北京 雨天 亲子 室内 博物馆 科技馆",
+    "city": "beijing",
+    "tags": ["rainy_day", "family", "museum"],
+    "crowd_type": ["family"],
+    "budget_level": "medium",
+    "expected_terms": ["rainy_day", "family", "museum", "室内", "亲子"]
+  },
+  {
+    "name": "上海_citywalk美食",
+    "query": "上海 citywalk 美食 夜景 步行 地铁",
+    "city": "shanghai",
+    "tags": ["citywalk", "food", "night_view"],
+    "crowd_type": ["friends", "couple"],
+    "budget_level": "medium",
+    "expected_terms": ["citywalk", "food", "night_view", "步行", "美食"]
+  },
+  {
+    "name": "北京_公共交通轻松",
+    "query": "北京 家庭 公共交通 轻松 低强度 行程",
+    "city": "beijing",
+    "tags": ["family"],
+    "crowd_type": ["family"],
+    "expected_terms": ["family", "public_transit", "低强度", "亲子"]
+  }
+]

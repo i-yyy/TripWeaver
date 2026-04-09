@@ -57,8 +57,10 @@ class KnowledgeBaseService:
             docs = [path for path in docs if city_token in str(path).lower()]
         return sorted(docs)
 
-    def load_documents(self, city: Optional[str] = None, limit: int = 200) -> List[Dict[str, Any]]:
-        docs = self.list_documents(city=city)[:limit]
+    def load_documents(self, city: Optional[str] = None, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        docs = self.list_documents(city=city)
+        if limit is not None:
+            docs = docs[:limit]
         data: List[Dict[str, Any]] = []
         for path in docs:
             text = self._safe_read(path)
@@ -73,7 +75,7 @@ class KnowledgeBaseService:
             )
         return data
 
-    def split_to_chunks(self, city: Optional[str] = None, limit: int = 200) -> List[DocumentChunk]:
+    def split_to_chunks(self, city: Optional[str] = None, limit: Optional[int] = None) -> List[DocumentChunk]:
         docs = self.load_documents(city=city, limit=limit)
         chunks: List[DocumentChunk] = []
 

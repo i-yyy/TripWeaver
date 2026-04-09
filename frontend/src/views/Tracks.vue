@@ -435,8 +435,8 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   padding: 24px;
-  height: calc(100vh - 310px);
-  min-height: 580px;
+  height: clamp(480px, calc(100vh - 360px), 620px);
+  min-height: 480px;
   overflow: hidden;
 }
 
@@ -467,8 +467,9 @@ onUnmounted(() => {
 .tracks-list-scroller {
   flex: 1;
   min-height: 0;
-  overflow-y: scroll;
+  overflow-y: auto;
   padding-right: 8px;
+  overscroll-behavior: contain;
   scrollbar-width: thin;
   scrollbar-color: rgba(107, 150, 204, 0.7) rgba(255, 255, 255, 0.22);
 }
@@ -492,6 +493,15 @@ onUnmounted(() => {
 .tracks-list-items {
   display: flex;
   flex-direction: column;
+}
+
+.tracks-list-spin {
+  flex: 1;
+  min-height: 0;
+}
+
+.tracks-list-items {
+  min-height: min-content;
 }
 
 .track-item {
@@ -636,7 +646,10 @@ onUnmounted(() => {
   }
 
   .tracks-list-scroller {
-    overflow: visible;
+    height: 320px;
+    min-height: 320px;
+    max-height: 320px;
+    overflow-y: auto;
     padding-right: 0;
   }
 
@@ -647,7 +660,8 @@ onUnmounted(() => {
   .map-canvas,
   .map-placeholder {
     flex: none;
-    min-height: 460px;
+    min-height: 360px;
+    max-height: 360px;
   }
 }
 </style>
