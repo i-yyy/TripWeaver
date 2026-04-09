@@ -135,6 +135,18 @@ class Meal(BaseModel):
     estimated_cost: int = 0
 
 
+class MealCandidate(BaseModel):
+    meal_type: str
+    name: str
+    poi_id: str = ""
+    address: str = ""
+    location: Optional[Location] = None
+    category: str = ""
+    tags: List[str] = Field(default_factory=list)
+    estimated_cost: int = 0
+    source_query: str = ""
+
+
 class Hotel(BaseModel):
     name: str
     address: str = ""

@@ -12,10 +12,11 @@ from typing import Any, Dict, List, Optional
 from hello_agents import SimpleAgent
 
 from ..models.agent_schemas import AgentExecutionStatus, PlanningAgentInput, PlanningAgentOutput
-from ..models.schemas import Attraction, Budget, DayPlan, Hotel, Location, Meal, TripPlan, WeatherInfo
+from ..models.schemas import Attraction, Budget, DayPlan, Hotel, Location, Meal, MealCandidate, TripPlan, WeatherInfo
 from ..models.skill_schemas import SelectedSkill, ValidationResult
 from ..services.amap_service import get_amap_service
 from ..services.llm_service import get_llm
+from ..services.meal_candidate_service import MealCandidateService, get_meal_candidate_service
 from ..services.plan_constraint_validator import PlanConstraintValidator, get_plan_constraint_validator
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,7 @@ PLANNER_AGENT_PROMPT = """
       "meals": [
         {
           "type": "breakfast/lunch/dinner",
-          "name": "中文餐饮建议",
+          "name": "中文餐饮建议，要根据用户选择推荐相关餐饮",
           "description": "中文说明吃什么，以及为什么这样安排，需结合当天景点、时段、预算或当地特色",
           "estimated_cost": 0
         }
@@ -97,6 +98,7 @@ class PlanningAgent:
         self,
         planner_runner: Any | None = None,
         constraint_validator: PlanConstraintValidator | None = None,
+        meal_candidate_service: MealCandidateService | None = None,
     ) -> None:
         self.tools = ["llm_service"]
         self.planner_runner = planner_runner or SimpleAgent(
@@ -105,15 +107,17 @@ class PlanningAgent:
             system_prompt=PLANNER_AGENT_PROMPT,
         )
         self.constraint_validator = constraint_validator or get_plan_constraint_validator()
+        self.meal_candidate_service = meal_candidate_service or get_meal_candidate_service()
 
     def list_tools(self) -> List[str]:
         return list(self.tools)
 
     async def execute(self, payload: PlanningAgentInput) -> PlanningAgentOutput:
-        prompt = self._build_prompt(payload)
+        meal_candidates_by_day = self._retrieve_meal_candidates(payload)
+        prompt = self._build_prompt(payload, meal_candidates_by_day)
         try:
             raw_response = await asyncio.to_thread(self.planner_runner.run, prompt)
-            trip_plan = self._parse_response(raw_response, payload)
+            trip_plan = self._parse_response(raw_response, payload, meal_candidates_by_day)
             trip_plan = await self._safe_enrich_plan(trip_plan, payload)
             trip_plan, validation = await self._validate_plan(trip_plan, payload)
             warnings = self._validation_messages(validation)
@@ -130,7 +134,7 @@ class PlanningAgent:
         except Exception as exc:  # pragma: no cover - LLM external dependency
             warning = f"Planning agent fell back to deterministic plan: {exc}"
             logger.warning(warning)
-            trip_plan = self.build_fallback_plan(payload)
+            trip_plan = self.build_fallback_plan(payload, meal_candidates_by_day)
             trip_plan = await self._safe_enrich_plan(trip_plan, payload)
             trip_plan, validation = await self._validate_plan(trip_plan, payload)
             validation_messages = self._validation_messages(validation)
@@ -169,7 +173,11 @@ class PlanningAgent:
     def _validation_messages(validation: ValidationResult) -> List[str]:
         return [issue.message for issue in [*validation.warnings, *validation.errors]]
 
-    def build_fallback_plan(self, payload: PlanningAgentInput) -> TripPlan:
+    def build_fallback_plan(
+        self,
+        payload: PlanningAgentInput,
+        meal_candidates_by_day: Optional[Dict[int, Dict[str, List[MealCandidate]]]] = None,
+    ) -> TripPlan:
         request = payload.request
         start_date = datetime.strptime(request.start_date, "%Y-%m-%d")
         hotel = payload.hotel_result.hotels[0] if payload.hotel_result.hotels else None
@@ -184,7 +192,8 @@ class PlanningAgent:
         for day_index in range(request.travel_days):
             date_text = (start_date + timedelta(days=day_index)).strftime("%Y-%m-%d")
             day_attractions = self._pick_day_attractions(attractions_pool, day_index)
-            meals = self._build_default_meals(request)
+            day_meal_candidates = (meal_candidates_by_day or {}).get(day_index, {})
+            meals = self._build_seed_meals(request, day_meal_candidates)
             days.append(
                 DayPlan(
                     date=date_text,
@@ -221,7 +230,11 @@ class PlanningAgent:
             applied_skills=payload.skills,
         )
 
-    def _build_prompt(self, payload: PlanningAgentInput) -> str:
+    def _build_prompt(
+        self,
+        payload: PlanningAgentInput,
+        meal_candidates_by_day: Optional[Dict[int, Dict[str, List[MealCandidate]]]] = None,
+    ) -> str:
         skill_block = self._build_skill_prompt_block(payload.skills)
         structured_context = {
             "trip_request": payload.request.model_dump(),
@@ -237,6 +250,7 @@ class PlanningAgent:
             },
             "attractions": [item.model_dump() for item in payload.attraction_result.attractions],
             "hotels": [item.model_dump() for item in payload.hotel_result.hotels],
+            "meal_candidates": self._meal_candidates_prompt_payload(meal_candidates_by_day or {}),
             "warnings": payload.supervisor_warnings,
         }
         context_json = json.dumps(structured_context, ensure_ascii=False, indent=2)
@@ -244,6 +258,7 @@ class PlanningAgent:
             "请基于以下结构化上下文生成中文旅行计划 JSON。"
             "再次强调：只能输出 JSON，所有说明必须使用简体中文。\n"
             "Keep the existing poi_id for attractions from context whenever available. Do not invent or drop poi_id, image_url, photos, image_source, image_status, or map_image_url when reusing a provided attraction.\n"
+            "When meal_candidates are provided, prefer them over invented meal names and keep meals specific.\n"
             f"{skill_block}{context_json}"
         )
 
@@ -287,12 +302,167 @@ class PlanningAgent:
         lines.append("")
         return "\n".join(lines)
 
-    def _parse_response(self, response: Any, payload: PlanningAgentInput) -> TripPlan:
+    def _retrieve_meal_candidates(
+        self,
+        payload: PlanningAgentInput,
+    ) -> Dict[int, Dict[str, List[MealCandidate]]]:
+        request = payload.request
+        attraction_pool = payload.attraction_result.attractions or self._build_default_attractions(
+            request.city,
+            request.travel_days,
+        )
+        hotel_pool = payload.hotel_result.hotels
+        candidates_by_day: Dict[int, Dict[str, List[MealCandidate]]] = {}
+
+        for day_index in range(request.travel_days):
+            day_attractions = self._pick_day_attractions(attraction_pool, day_index)
+            day_hotel = hotel_pool[day_index % len(hotel_pool)] if hotel_pool else None
+            try:
+                candidates_by_day[day_index] = self.meal_candidate_service.retrieve_day_candidates(
+                    request=request,
+                    day_index=day_index,
+                    attractions=day_attractions,
+                    hotel=day_hotel,
+                    skills=payload.skills,
+                )
+            except Exception as exc:  # pragma: no cover - external dependency
+                logger.warning(
+                    "Meal candidate retrieval failed city=%s day=%s error=%s",
+                    request.city,
+                    day_index,
+                    exc,
+                )
+                candidates_by_day[day_index] = {}
+        return candidates_by_day
+
+    @staticmethod
+    def _meal_candidates_prompt_payload(
+        meal_candidates_by_day: Dict[int, Dict[str, List[MealCandidate]]],
+    ) -> Dict[str, Dict[str, List[Dict[str, Any]]]]:
+        payload: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+        for day_index, per_type in meal_candidates_by_day.items():
+            payload[str(day_index)] = {
+                meal_type: [candidate.model_dump() for candidate in candidates]
+                for meal_type, candidates in per_type.items()
+            }
+        return payload
+
+    def _build_seed_meals(
+        self,
+        request,
+        meal_candidates_by_type: Optional[Dict[str, List[MealCandidate]]] = None,
+        meals: Optional[List[Meal]] = None,
+    ) -> List[Meal]:
+        merged = list(meals or [])
+        existing_types = {str(meal.type or "").lower() for meal in merged}
+        defaults_by_type = {meal.type: meal for meal in self._build_default_meals(request)}
+
+        for meal_type in ("breakfast", "lunch", "dinner"):
+            if meal_type in existing_types:
+                continue
+            candidate = self._pick_meal_candidate(meal_type, None, (meal_candidates_by_type or {}).get(meal_type, []))
+            if candidate is not None:
+                merged.append(self._candidate_to_meal(candidate, meal_type, request))
+            else:
+                merged.append(defaults_by_type[meal_type])
+
+        return self._sort_meals_by_type(merged[:3])
+
+    @staticmethod
+    def _sort_meals_by_type(meals: List[Meal]) -> List[Meal]:
+        order = {"breakfast": 0, "lunch": 1, "dinner": 2, "snack": 3}
+        return sorted(meals, key=lambda item: order.get(str(item.type).lower(), 99))
+
+    def _pick_meal_candidate(
+        self,
+        meal_type: str,
+        meal: Optional[Meal],
+        candidates: List[MealCandidate],
+    ) -> Optional[MealCandidate]:
+        if not candidates:
+            return None
+        if meal is not None:
+            matched = self._match_candidate_by_name(meal.name, candidates)
+            if matched is not None:
+                return matched
+        return candidates[0]
+
+    @staticmethod
+    def _match_candidate_by_name(name: str, candidates: List[MealCandidate]) -> Optional[MealCandidate]:
+        compact_name = re.sub(r"\s+", "", str(name or "")).lower()
+        if not compact_name:
+            return None
+        for candidate in candidates:
+            candidate_name = re.sub(r"\s+", "", candidate.name).lower()
+            if compact_name == candidate_name:
+                return candidate
+        for candidate in candidates:
+            candidate_name = re.sub(r"\s+", "", candidate.name).lower()
+            if compact_name in candidate_name or candidate_name in compact_name:
+                return candidate
+        return None
+
+    def _candidate_to_meal(self, candidate: MealCandidate, meal_type: str, request) -> Meal:
+        return Meal(
+            type=meal_type,
+            name=candidate.name,
+            address=candidate.address or None,
+            location=candidate.location,
+            description=self._build_candidate_meal_description(candidate, meal_type, request),
+            estimated_cost=candidate.estimated_cost or self._build_meal_template(request, meal_type).estimated_cost,
+        )
+
+    def _build_candidate_meal_description(self, candidate: MealCandidate, meal_type: str, request) -> str:
+        label = self._meal_type_label(meal_type)
+        address = candidate.address or request.city
+        dietary_suffix = self._meal_dietary_suffix(request)
+        category = candidate.category or "本地餐饮"
+        return (
+            f"{label}建议在{candidate.name}用餐，地点在{address}，更方便衔接当天路线；"
+            f"这是一家偏{category}方向的候选，吃什么更具体，也更容易落地执行。{dietary_suffix}"
+        ).strip()
+
+    @staticmethod
+    def _meal_dietary_suffix(request) -> str:
+        mapping = {
+            "vegetarian": "已优先考虑素食限制。",
+            "halal": "已优先考虑清真限制。",
+            "no_spicy": "已优先考虑少辣或不辣需求。",
+        }
+        messages = [mapping[item.lower()] for item in getattr(request, "dietary_restrictions", []) if item.lower() in mapping]
+        return "" if not messages else " " + "".join(messages)
+
+    def _build_candidate_meal_description(self, candidate: MealCandidate, meal_type: str, request) -> str:
+        label = self._meal_type_label(meal_type)
+        address = candidate.address or request.city
+        dietary_suffix = self._meal_dietary_suffix(request)
+        category = candidate.category or "本地餐饮"
+        return (
+            f"{label}建议在{candidate.name}用餐，地点在{address}，更方便衔接当天路线；"
+            f"这是一家偏{category}方向的候选，吃什么更具体，也更容易落地执行。{dietary_suffix}"
+        ).strip()
+
+    @staticmethod
+    def _meal_dietary_suffix(request) -> str:
+        mapping = {
+            "vegetarian": "已优先考虑素食限制。",
+            "halal": "已优先考虑清真限制。",
+            "no_spicy": "已优先考虑少辣或不辣需求。",
+        }
+        messages = [mapping[item.lower()] for item in getattr(request, "dietary_restrictions", []) if item.lower() in mapping]
+        return "" if not messages else " " + "".join(messages)
+
+    def _parse_response(
+        self,
+        response: Any,
+        payload: PlanningAgentInput,
+        meal_candidates_by_day: Optional[Dict[int, Dict[str, List[MealCandidate]]]] = None,
+    ) -> TripPlan:
         json_str = self._extract_json(str(response))
         data = json.loads(json_str)
         if not isinstance(data, dict):
             raise ValueError("Planner response root must be an object")
-        normalized = self._normalize_plan_data(data, payload)
+        normalized = self._normalize_plan_data(data, payload, meal_candidates_by_day)
         return TripPlan(**normalized)
 
     @staticmethod
@@ -312,7 +482,12 @@ class PlanningAgent:
             return response[start : end + 1]
         raise ValueError("No JSON object found in planning response")
 
-    def _normalize_plan_data(self, data: Dict[str, Any], payload: PlanningAgentInput) -> Dict[str, Any]:
+    def _normalize_plan_data(
+        self,
+        data: Dict[str, Any],
+        payload: PlanningAgentInput,
+        meal_candidates_by_day: Optional[Dict[int, Dict[str, List[MealCandidate]]]] = None,
+    ) -> Dict[str, Any]:
         request = payload.request
         raw_days = data.get("days")
         if not isinstance(raw_days, list):
@@ -325,6 +500,7 @@ class PlanningAgent:
                 raw_day=raw_day,
                 day_index=index,
                 payload=payload,
+                meal_candidates_by_type=(meal_candidates_by_day or {}).get(index, {}),
                 default_hotel=hotel_candidates[index % len(hotel_candidates)] if hotel_candidates else None,
                 default_attractions=self._pick_day_attractions(attraction_candidates, index),
             )
@@ -332,7 +508,7 @@ class PlanningAgent:
         ]
 
         if not days:
-            fallback = self.build_fallback_plan(payload)
+            fallback = self.build_fallback_plan(payload, meal_candidates_by_day)
             return fallback.model_dump()
 
         while len(days) < request.travel_days:
@@ -342,6 +518,7 @@ class PlanningAgent:
                     raw_day={},
                     day_index=index,
                     payload=payload,
+                    meal_candidates_by_type=(meal_candidates_by_day or {}).get(index, {}),
                     default_hotel=hotel_candidates[index % len(hotel_candidates)] if hotel_candidates else None,
                     default_attractions=self._pick_day_attractions(attraction_candidates, index),
                 )
@@ -380,6 +557,7 @@ class PlanningAgent:
         raw_day: Any,
         day_index: int,
         payload: PlanningAgentInput,
+        meal_candidates_by_type: Optional[Dict[str, List[MealCandidate]]],
         default_hotel: Optional[Hotel],
         default_attractions: List[Attraction],
     ) -> DayPlan:
@@ -402,9 +580,8 @@ class PlanningAgent:
 
         meals_raw = day.get("meals") if isinstance(day.get("meals"), list) else []
         meals = [self._normalize_meal(item, index) for index, item in enumerate(meals_raw)]
-        if len(meals) < 3:
-            meals = self._merge_meals(meals, self._build_default_meals(request))
-        meals = self._enrich_meals(meals, request)
+        meals = self._build_seed_meals(request, meal_candidates_by_type, meals)
+        meals = self._enrich_meals(meals, request, meal_candidates_by_type)
 
         hotel = self._normalize_hotel(day.get("hotel")) if isinstance(day.get("hotel"), dict) else default_hotel
         accommodation = str(day.get("accommodation") or (hotel.name if hotel else request.accommodation))
@@ -472,32 +649,61 @@ class PlanningAgent:
 
         return enriched
 
-    def _enrich_meals(self, meals: List[Meal], request) -> List[Meal]:
+    def _enrich_meals(
+        self,
+        meals: List[Meal],
+        request,
+        meal_candidates_by_type: Optional[Dict[str, List[MealCandidate]]] = None,
+    ) -> List[Meal]:
         defaults_by_type = {meal.type: meal for meal in self._build_default_meals(request)}
         enriched: List[Meal] = []
 
         for meal in meals[:3]:
             fallback = defaults_by_type.get(meal.type) or self._build_meal_template(request, meal.type)
+            candidate = self._pick_meal_candidate(
+                meal.type,
+                meal,
+                (meal_candidates_by_type or {}).get(str(meal.type).lower(), []),
+            )
             name = meal.name.strip()
             if self._is_generic_meal_name(name, meal.type):
-                name = fallback.name
+                if candidate is not None:
+                    name = candidate.name
+                else:
+                    name = fallback.name
 
             description = (meal.description or "").strip()
             if not description or self._is_generic_meal_description(description):
-                description = fallback.description
+                if candidate is not None:
+                    description = self._build_candidate_meal_description(candidate, meal.type, request)
+                else:
+                    description = fallback.description
 
-            estimated_cost = meal.estimated_cost or fallback.estimated_cost
+            address = meal.address
+            location = meal.location
+            if candidate is not None:
+                address = address or candidate.address or None
+                location = location or candidate.location
+
+            estimated_cost = meal.estimated_cost
+            if not estimated_cost and candidate is not None:
+                estimated_cost = candidate.estimated_cost
+            if not estimated_cost:
+                estimated_cost = fallback.estimated_cost
+
             enriched.append(
                 meal.model_copy(
                     update={
                         "name": name,
+                        "address": address,
+                        "location": location,
                         "description": description,
                         "estimated_cost": estimated_cost,
                     }
                 )
             )
 
-        return enriched
+        return self._sort_meals_by_type(enriched)
 
     @staticmethod
     def _normalize_photo_urls(raw_photos: Any) -> List[str]:
