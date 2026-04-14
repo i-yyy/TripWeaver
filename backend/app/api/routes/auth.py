@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from ...db.models import User
 from ...models.auth_schemas import (
@@ -66,6 +66,18 @@ async def update_profile(
     try:
         updated_user = get_auth_service().update_profile(current_user.id, payload)
         return AuthUserResponse(success=True, message="Profile updated", data=get_auth_service().to_user_data(updated_user))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/avatar", response_model=AuthUserResponse, summary="Upload avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+) -> AuthUserResponse:
+    try:
+        updated_user = get_auth_service().update_avatar(current_user.id, file)
+        return AuthUserResponse(success=True, message="Avatar updated", data=get_auth_service().to_user_data(updated_user))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from sqlmodel import select
 
@@ -84,6 +84,18 @@ class TracksService:
             session.delete(track)
             session.commit()
             return True
+
+    def get_track_plan(self, user_id: str, track_id: str) -> Optional[Dict[str, Any]]:
+        with session_scope() as session:
+            statement = (
+                select(TripHistory)
+                .where(TripHistory.id == track_id)
+                .where(TripHistory.user_id == user_id)
+            )
+            track = session.exec(statement).first()
+            if track is None:
+                return None
+            return dict(track.plan_json or {})
 
 
 _tracks_service: TracksService | None = None

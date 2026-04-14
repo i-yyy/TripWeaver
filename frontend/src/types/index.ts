@@ -225,6 +225,8 @@ export interface AuthUserData {
   id: string
   email: string
   nickname: string
+  avatar_url?: string
+  gender?: string
   is_active: boolean
   is_developer?: boolean
   created_at?: string
@@ -244,6 +246,7 @@ export interface AuthLoginPayload {
 export interface UpdateProfilePayload {
   nickname: string
   email: string
+  gender?: string
 }
 
 export interface AuthChangePasswordPayload {
@@ -277,6 +280,12 @@ export interface TravelTracksResponse {
   success: boolean
   message: string
   data: TravelTrackItem[]
+}
+
+export interface TravelTrackPlanResponse {
+  success: boolean
+  message: string
+  data?: TripPlan | null
 }
 
 export interface BasicResponse {
@@ -328,4 +337,265 @@ export interface KBEvaluateResponse {
   metadata_filters?: Record<string, unknown>
   metrics: KBEvaluateMetrics
   items: KBEvaluateItem[]
+}
+
+export interface CommunityTripCard {
+  id: string
+  city: string
+  title: string
+  subtitle: string
+  summary: string
+  cover_image_url: string
+  days: number
+  estimated_budget: 'low' | 'medium' | 'high' | string
+  tags: string[]
+  travel_style: string[]
+  companions: string[]
+  highlights: string[]
+  author_name: string
+  like_count: number
+  favorite_count: number
+  comment_count: number
+  reuse_count: number
+  match_score: number
+  match_reasons: string[]
+  liked_by_me: boolean
+  favorited_by_me: boolean
+  recent_comments: CommunityComment[]
+}
+
+export interface CommunityComment {
+  id: string
+  card_id: string
+  author_name: string
+  author_avatar_url?: string
+  content: string
+  created_at: string
+}
+
+export interface CommunityPostComment {
+  id: string
+  post_id: string
+  author_name: string
+  author_avatar_url?: string
+  content: string
+  created_at: string
+}
+
+export interface CommunityFeedData {
+  cards: CommunityTripCard[]
+  preference_tags: string[]
+  recent_cities: string[]
+  summary: string
+}
+
+export interface CommunityFeedResponse {
+  success: boolean
+  message: string
+  data: CommunityFeedData
+}
+
+export interface CommunityInteractionResponse {
+  success: boolean
+  message: string
+  active: boolean
+}
+
+export interface CommunityCommentResponse {
+  success: boolean
+  message: string
+  data?: CommunityComment | null
+}
+
+export interface CommunityPost {
+  id: string
+  user_id: string
+  author_name: string
+  author_avatar_url?: string
+  content: string
+  image_urls: string[]
+  city: string
+  tags: string[]
+  linked_track_id: string
+  linked_track_title: string
+  like_count: number
+  comment_count: number
+  created_at: string
+  liked_by_me: boolean
+  followed_author: boolean
+  recent_comments: CommunityPostComment[]
+}
+
+export interface CommunityPostFeedResponse {
+  success: boolean
+  message: string
+  data: CommunityPost[]
+}
+
+export interface CommunityUserSummary {
+  id: string
+  nickname: string
+  email?: string
+  avatar_url?: string
+  gender?: string
+  followed_by_me: boolean
+}
+
+export interface CommunityProfileHomeData {
+  user: CommunityUserSummary
+  follower_count: number
+  following_count: number
+  post_count: number
+  followers: CommunityUserSummary[]
+  following: CommunityUserSummary[]
+  posts: CommunityPost[]
+}
+
+export interface CommunityProfileHomeResponse {
+  success: boolean
+  message: string
+  data?: CommunityProfileHomeData | null
+}
+
+export interface CommunityPostResponse {
+  success: boolean
+  message: string
+  data?: CommunityPost | null
+}
+
+export interface CommunityPostCommentResponse {
+  success: boolean
+  message: string
+  data?: CommunityPostComment | null
+}
+
+export interface CommunityImageUploadResponse {
+  success: boolean
+  message: string
+  url: string
+}
+
+export interface CollabUserData {
+  id: string
+  nickname: string
+  email: string
+  avatar_url?: string
+}
+
+export interface CollabTripMember {
+  id: string
+  trip_id: string
+  user_id: string
+  role: 'owner' | 'editor' | 'viewer' | string
+  status: string
+  joined_at: string
+  user: CollabUserData
+}
+
+export interface CollabTripInvite {
+  id: string
+  trip_id: string
+  inviter_user_id: string
+  invitee_user_id: string
+  invitee_email: string
+  role: 'editor' | 'viewer' | string
+  status: string
+  created_at: string
+  responded_at?: string | null
+  inviter?: CollabUserData | null
+  invitee?: CollabUserData | null
+  trip_title: string
+  city: string
+}
+
+export interface CollabTripComment {
+  id: string
+  trip_id: string
+  day_index?: number | null
+  user_id: string
+  content: string
+  created_at: string
+  user: CollabUserData
+}
+
+export interface CollabTripVote {
+  id: string
+  trip_id: string
+  target_type: string
+  target_id: string
+  user_id: string
+  vote_type: string
+  created_at: string
+  user: CollabUserData
+}
+
+export interface CollabTripChange {
+  id: string
+  trip_id: string
+  user_id: string
+  change_type: string
+  summary: string
+  before_json: Record<string, unknown>
+  after_json: Record<string, unknown>
+  created_at: string
+  user: CollabUserData
+}
+
+export interface CollabTripSummary {
+  id: string
+  owner_user_id: string
+  source_track_id: string
+  title: string
+  city: string
+  start_date: string
+  end_date: string
+  status: string
+  version: number
+  updated_at: string
+  created_at: string
+  owner: CollabUserData
+  my_role: string
+  member_count: number
+  comment_count: number
+}
+
+export interface CollabTripDetail extends CollabTripSummary {
+  plan_json: TripPlan
+  members: CollabTripMember[]
+  invites: CollabTripInvite[]
+  comments: CollabTripComment[]
+  votes: CollabTripVote[]
+  changes: CollabTripChange[]
+}
+
+export interface CollabTripListResponse {
+  success: boolean
+  message: string
+  data: CollabTripSummary[]
+  pending_invites: CollabTripInvite[]
+}
+
+export interface CollabTripResponse {
+  success: boolean
+  message: string
+  data?: CollabTripDetail | null
+}
+
+export interface CollabTripInviteResponse {
+  success: boolean
+  message: string
+  data?: CollabTripInvite | null
+}
+
+export interface CollabTripCommentResponse {
+  success: boolean
+  message: string
+  data?: CollabTripComment | null
+}
+
+export interface CollabTripVoteResponse {
+  success: boolean
+  message: string
+  data?: CollabTripVote | null
+  active: boolean
 }

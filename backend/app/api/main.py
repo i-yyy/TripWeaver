@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from starlette.responses import Response
 
 from ..config import get_settings, print_config, validate_config
 from ..db.database import init_db
-from .routes import auth, feedback, kb, map as map_routes, poi, tracks, trip, user
+from .routes import auth, collab, community, feedback, kb, map as map_routes, poi, tracks, trip, user
 
 settings = get_settings()
 
@@ -36,6 +39,10 @@ app.include_router(user.router, prefix="/api")
 app.include_router(feedback.router, prefix="/api")
 app.include_router(kb.router, prefix="/api")
 app.include_router(tracks.router, prefix="/api")
+app.include_router(community.router, prefix="/api")
+app.include_router(collab.router, prefix="/api")
+Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=settings.upload_dir), name="uploads")
 
 
 @app.middleware("http")

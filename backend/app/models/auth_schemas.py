@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -12,6 +12,8 @@ class AuthUserData(BaseModel):
     id: str
     email: str
     nickname: str
+    avatar_url: str = ""
+    gender: str = ""
     is_active: bool = True
     is_developer: bool = False
     created_at: Optional[datetime] = None
@@ -31,6 +33,7 @@ class LoginRequest(BaseModel):
 class UpdateProfileRequest(BaseModel):
     nickname: str = Field(..., min_length=2, max_length=40)
     email: EmailStr
+    gender: str = Field(default="", max_length=20)
 
 
 class ChangePasswordRequest(BaseModel):
@@ -67,6 +70,12 @@ class TravelTracksResponse(BaseModel):
     success: bool
     message: str = ""
     data: List[TravelTrackItem] = Field(default_factory=list)
+
+
+class TravelTrackPlanResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[Dict[str, Any]] = None
 
 
 class OperationResponse(BaseModel):

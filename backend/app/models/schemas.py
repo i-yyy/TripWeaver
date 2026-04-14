@@ -293,6 +293,94 @@ class MemoryFact(BaseModel):
     tags: List[str] = Field(default_factory=list)
 
 
+class CommunityCommentData(BaseModel):
+    id: str
+    card_id: str
+    author_name: str = "旅行者"
+    author_avatar_url: str = ""
+    content: str
+    created_at: datetime
+
+
+class CommunityPostCommentData(BaseModel):
+    id: str
+    post_id: str
+    author_name: str = "旅行者"
+    author_avatar_url: str = ""
+    content: str
+    created_at: datetime
+
+
+class CommunityTripCard(BaseModel):
+    id: str
+    city: str
+    title: str
+    subtitle: str = ""
+    summary: str
+    cover_image_url: str = ""
+    days: int = 2
+    estimated_budget: str = "medium"
+    tags: List[str] = Field(default_factory=list)
+    travel_style: List[str] = Field(default_factory=list)
+    companions: List[str] = Field(default_factory=list)
+    highlights: List[str] = Field(default_factory=list)
+    author_name: str = "社区旅行者"
+    like_count: int = 0
+    favorite_count: int = 0
+    comment_count: int = 0
+    reuse_count: int = 0
+    match_score: float = 0.0
+    match_reasons: List[str] = Field(default_factory=list)
+    liked_by_me: bool = False
+    favorited_by_me: bool = False
+    recent_comments: List[CommunityCommentData] = Field(default_factory=list)
+
+
+class CommunityFeedData(BaseModel):
+    cards: List[CommunityTripCard] = Field(default_factory=list)
+    preference_tags: List[str] = Field(default_factory=list)
+    recent_cities: List[str] = Field(default_factory=list)
+    summary: str = ""
+
+
+class CommunityPostData(BaseModel):
+    id: str
+    user_id: str
+    author_name: str = "旅行者"
+    author_avatar_url: str = ""
+    content: str
+    image_urls: List[str] = Field(default_factory=list)
+    city: str = ""
+    tags: List[str] = Field(default_factory=list)
+    linked_track_id: str = ""
+    linked_track_title: str = ""
+    like_count: int = 0
+    comment_count: int = 0
+    created_at: datetime
+    liked_by_me: bool = False
+    followed_author: bool = False
+    recent_comments: List[CommunityPostCommentData] = Field(default_factory=list)
+
+
+class CommunityUserSummary(BaseModel):
+    id: str
+    nickname: str = "旅行者"
+    email: str = ""
+    avatar_url: str = ""
+    gender: str = ""
+    followed_by_me: bool = False
+
+
+class CommunityProfileHomeData(BaseModel):
+    user: CommunityUserSummary
+    follower_count: int = 0
+    following_count: int = 0
+    post_count: int = 0
+    followers: List[CommunityUserSummary] = Field(default_factory=list)
+    following: List[CommunityUserSummary] = Field(default_factory=list)
+    posts: List[CommunityPostData] = Field(default_factory=list)
+
+
 # =====================
 # Response schemas
 # =====================
@@ -338,6 +426,228 @@ class UserProfileResponse(BaseModel):
     success: bool
     message: str = ""
     data: Optional[UserProfileData] = None
+
+
+class CommunityFeedResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: CommunityFeedData = Field(default_factory=CommunityFeedData)
+
+
+class CommunityInteractionResponse(BaseModel):
+    success: bool
+    message: str = ""
+    active: bool = False
+
+
+class CommunityCommentCreateRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=300)
+
+
+class CommunityCommentResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[CommunityCommentData] = None
+
+
+class CommunityPostCreateRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=600)
+    image_urls: List[str] = Field(default_factory=list, max_length=9)
+    city: str = Field(default="", max_length=50)
+    tags: List[str] = Field(default_factory=list, max_length=8)
+    linked_track_id: str = Field(default="", max_length=80)
+    linked_track_title: str = Field(default="", max_length=120)
+
+
+class CommunityPostCommentCreateRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=300)
+
+
+class CommunityPostResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[CommunityPostData] = None
+
+
+class CommunityPostFeedResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: List[CommunityPostData] = Field(default_factory=list)
+
+
+class CommunityProfileHomeResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[CommunityProfileHomeData] = None
+
+
+class CollabUserData(BaseModel):
+    id: str
+    nickname: str = "旅行者"
+    email: str = ""
+    avatar_url: str = ""
+
+
+class CollabTripMemberData(BaseModel):
+    id: str
+    trip_id: str
+    user_id: str
+    role: str = "viewer"
+    status: str = "active"
+    joined_at: datetime
+    user: CollabUserData
+
+
+class CollabTripInviteData(BaseModel):
+    id: str
+    trip_id: str
+    inviter_user_id: str
+    invitee_user_id: str = ""
+    invitee_email: str = ""
+    role: str = "editor"
+    status: str = "pending"
+    created_at: datetime
+    responded_at: Optional[datetime] = None
+    inviter: Optional[CollabUserData] = None
+    invitee: Optional[CollabUserData] = None
+    trip_title: str = ""
+    city: str = ""
+
+
+class CollabTripCommentData(BaseModel):
+    id: str
+    trip_id: str
+    day_index: Optional[int] = None
+    user_id: str
+    content: str
+    created_at: datetime
+    user: CollabUserData
+
+
+class CollabTripVoteData(BaseModel):
+    id: str
+    trip_id: str
+    target_type: str = "attraction"
+    target_id: str
+    user_id: str
+    vote_type: str = "want"
+    created_at: datetime
+    user: CollabUserData
+
+
+class CollabTripChangeData(BaseModel):
+    id: str
+    trip_id: str
+    user_id: str
+    change_type: str = "update"
+    summary: str = ""
+    before_json: Dict[str, Any] = Field(default_factory=dict)
+    after_json: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime
+    user: CollabUserData
+
+
+class CollabTripSummaryData(BaseModel):
+    id: str
+    owner_user_id: str
+    source_track_id: str = ""
+    title: str
+    city: str = ""
+    start_date: str = ""
+    end_date: str = ""
+    status: str = "draft"
+    version: int = 1
+    updated_at: datetime
+    created_at: datetime
+    owner: CollabUserData
+    my_role: str = "viewer"
+    member_count: int = 0
+    comment_count: int = 0
+
+
+class CollabTripDetailData(CollabTripSummaryData):
+    plan_json: Dict[str, Any] = Field(default_factory=dict)
+    members: List[CollabTripMemberData] = Field(default_factory=list)
+    invites: List[CollabTripInviteData] = Field(default_factory=list)
+    comments: List[CollabTripCommentData] = Field(default_factory=list)
+    votes: List[CollabTripVoteData] = Field(default_factory=list)
+    changes: List[CollabTripChangeData] = Field(default_factory=list)
+
+
+class CollabTripCreateRequest(BaseModel):
+    source_track_id: str = Field(..., min_length=1, max_length=80)
+    title: str = Field(default="", max_length=120)
+
+
+class CollabTripUpdateRequest(BaseModel):
+    plan_json: Dict[str, Any] = Field(default_factory=dict)
+    summary: str = Field(default="更新了协同行程", max_length=240)
+
+
+class CollabTripInviteRequest(BaseModel):
+    identifier: str = Field(..., min_length=1, max_length=255)
+    role: str = Field(default="editor", max_length=20)
+
+
+class CollabTripCommentCreateRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=500)
+    day_index: Optional[int] = None
+
+
+class CollabTripVoteRequest(BaseModel):
+    target_type: str = Field(default="attraction", max_length=40)
+    target_id: str = Field(..., min_length=1, max_length=255)
+    vote_type: str = Field(default="want", max_length=40)
+
+
+class CollabTripListResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: List[CollabTripSummaryData] = Field(default_factory=list)
+    pending_invites: List[CollabTripInviteData] = Field(default_factory=list)
+
+
+class CollabTripResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[CollabTripDetailData] = None
+
+
+class CollabTripInviteResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[CollabTripInviteData] = None
+
+
+class CollabTripCommentResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[CollabTripCommentData] = None
+
+
+class CollabTripVoteResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[CollabTripVoteData] = None
+    active: bool = False
+
+
+class CommunityPostCommentResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[CommunityPostCommentData] = None
+
+
+class CommunityFollowResponse(BaseModel):
+    success: bool
+    message: str = ""
+    active: bool = False
+
+
+class CommunityImageUploadResponse(BaseModel):
+    success: bool
+    message: str = ""
+    url: str = ""
 
 
 class ErrorResponse(BaseModel):

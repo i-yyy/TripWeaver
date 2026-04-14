@@ -1,4 +1,4 @@
-# HelloAgents智能旅行助手 🌍✈️
+# 云途智织——TripWeaver 🌍✈️
 
 基于HelloAgents框架构建的智能旅行规划助手,集成高德地图MCP服务,提供个性化的旅行计划生成。
 
@@ -264,5 +264,5 @@ CC BY-NC-SA 4.0
 
 ---
 
-**HelloAgents智能旅行助手** - 让旅行计划变得简单而智能 🌈
+**云图智织——TripWeaver** - 让旅行计划变得简单而智能 🌈
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from time import perf_counter
 from typing import List
 
 from ..models.agent_schemas import (
@@ -42,6 +43,7 @@ class SupervisorAgent:
 
     async def execute(self, payload: SupervisorAgentInput) -> SupervisorAgentOutput:
         request = payload.request
+        started_at = perf_counter()
         logger.info("SupervisorAgent start city=%s days=%s", request.city, request.travel_days)
 
         attraction_task = asyncio.create_task(
@@ -64,16 +66,27 @@ class SupervisorAgent:
                 )
             )
         )
+        fetch_started_at = perf_counter()
         attraction_result, weather_result, hotel_result = await asyncio.gather(
             attraction_task,
             weather_task,
             hotel_task,
+        )
+        fetch_elapsed = perf_counter() - fetch_started_at
+        logger.info(
+            "⏱️ SupervisorAgent fetch completed city=%s elapsed=%.2fs attractions=%s hotels=%s weather=%s",
+            request.city,
+            fetch_elapsed,
+            len(attraction_result.attractions),
+            len(hotel_result.hotels),
+            len(weather_result.weather_info),
         )
 
         warnings: List[str] = []
         for result in (attraction_result, weather_result, hotel_result):
             warnings.extend(result.status.warnings)
 
+        skills_started_at = perf_counter()
         dynamic_skills = self.skill_service.augment_dynamic_skills(
             request=request,
             weather_result=weather_result,
@@ -82,7 +95,16 @@ class SupervisorAgent:
             rag_context=payload.rag_context,
         )
         final_skills = self.skill_service.finalize_skills(payload.skills, dynamic_skills)
+        logger.info(
+            "⏱️ SupervisorAgent skills completed city=%s elapsed=%.2fs static=%s dynamic=%s final=%s",
+            request.city,
+            perf_counter() - skills_started_at,
+            len(payload.skills),
+            len(dynamic_skills),
+            len(final_skills),
+        )
 
+        planning_started_at = perf_counter()
         planning_result = await self.planning_agent.execute(
             PlanningAgentInput(
                 request=request,
@@ -96,6 +118,13 @@ class SupervisorAgent:
                 hotel_result=hotel_result,
                 supervisor_warnings=warnings,
             )
+        )
+        logger.info(
+            "⏱️ SupervisorAgent planning completed city=%s elapsed=%.2fs days=%s warnings=%s",
+            request.city,
+            perf_counter() - planning_started_at,
+            len(planning_result.trip_plan.days),
+            len(planning_result.status.warnings),
         )
 
         combined_warnings = warnings + planning_result.status.warnings
@@ -114,12 +143,13 @@ class SupervisorAgent:
         )
 
         logger.info(
-            "SupervisorAgent finished city=%s degraded=%s attractions=%s hotels=%s weather=%s",
+            "⏱️ SupervisorAgent finished city=%s degraded=%s attractions=%s hotels=%s weather=%s total_elapsed=%.2fs",
             request.city,
             status.degraded,
             len(attraction_result.attractions),
             len(hotel_result.hotels),
             len(weather_result.weather_info),
+            perf_counter() - started_at,
         )
         return SupervisorAgentOutput(
             status=status,
