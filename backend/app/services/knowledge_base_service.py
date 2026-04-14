@@ -1,8 +1,9 @@
-"""本地旅游知识库服务（支持 Qdrant 入库与检索）。"""
+"""本地旅游知识库服务，支持 Qdrant 入库与检索。"""
 
 from __future__ import annotations
 
 import re
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,6 +46,7 @@ class KnowledgeBaseService:
     def list_documents(self, city: Optional[str] = None) -> List[Path]:
         if not self.root_dir.exists():
             return []
+
         docs = [
             path
             for path in self.root_dir.rglob("*.md")
@@ -61,6 +63,7 @@ class KnowledgeBaseService:
         docs = self.list_documents(city=city)
         if limit is not None:
             docs = docs[:limit]
+
         data: List[Dict[str, Any]] = []
         for path in docs:
             text = self._safe_read(path)
@@ -128,6 +131,8 @@ class KnowledgeBaseService:
 
     def ingest_documents(self, city: Optional[str] = None, clear_collection: bool = False) -> Dict[str, Any]:
         collection = self.settings.qdrant_collection_kb
+        started_at = time.perf_counter()
+
         try:
             if clear_collection:
                 try:
@@ -142,7 +147,13 @@ class KnowledgeBaseService:
                 "document_count": 0,
                 "chunk_count": 0,
                 "embedding_mode": self.embedding.mode,
+                "elapsed_seconds": round(time.perf_counter() - started_at, 2),
             }
+
+        scope_text = city or "ALL"
+        print(f"[KB] 准备入库，范围: {scope_text}，集合: {collection}")
+        print("[KB] 第 1/4 步: 读取文档并切片...")
+
         chunks = self.split_to_chunks(city=city)
         if not chunks:
             return {
@@ -151,9 +162,36 @@ class KnowledgeBaseService:
                 "document_count": 0,
                 "chunk_count": 0,
                 "embedding_mode": self.embedding.mode,
+                "elapsed_seconds": round(time.perf_counter() - started_at, 2),
             }
 
-        vectors = self.embedding.embed_texts([chunk.content for chunk in chunks])
+        document_count = len({chunk.doc_path for chunk in chunks})
+        print(f"[KB] 已读取 {document_count} 篇文档，生成 {len(chunks)} 个 chunk")
+
+        print(f"[KB] 第 2/4 步: 生成向量，模式: {self.embedding.mode}")
+        embed_batch_size = 64
+        vectors: List[List[float]] = []
+        total_embed_batches = max(1, (len(chunks) + embed_batch_size - 1) // embed_batch_size)
+        try:
+            for batch_index, start in enumerate(range(0, len(chunks), embed_batch_size), start=1):
+                batch_chunks = chunks[start : start + embed_batch_size]
+                batch_vectors = self.embedding.embed_texts([chunk.content for chunk in batch_chunks])
+                vectors.extend(batch_vectors)
+                print(
+                    f"[KB] 向量进度 {batch_index}/{total_embed_batches}，"
+                    f"累计完成 {min(start + len(batch_chunks), len(chunks))}/{len(chunks)}"
+                )
+        except Exception as exc:
+            return {
+                "success": False,
+                "message": f"向量生成失败: {exc}",
+                "document_count": document_count,
+                "chunk_count": 0,
+                "embedding_mode": self.embedding.mode,
+                "elapsed_seconds": round(time.perf_counter() - started_at, 2),
+            }
+
+        print("[KB] 第 3/4 步: 组装写入点...")
         points: List[models.PointStruct] = []
         for chunk, vector in zip(chunks, vectors):
             points.append(
@@ -168,29 +206,37 @@ class KnowledgeBaseService:
             )
 
         batch_size = 64
+        total_upsert_batches = max(1, (len(points) + batch_size - 1) // batch_size)
+        print(f"[KB] 第 4/4 步: 写入 Qdrant，共 {total_upsert_batches} 批")
         try:
-            for i in range(0, len(points), batch_size):
+            for batch_index, start in enumerate(range(0, len(points), batch_size), start=1):
                 self.client.upsert(
                     collection_name=collection,
-                    points=points[i : i + batch_size],
+                    points=points[start : start + batch_size],
                     wait=True,
+                )
+                print(
+                    f"[KB] 写入进度 {batch_index}/{total_upsert_batches}，"
+                    f"累计完成 {min(start + batch_size, len(points))}/{len(points)}"
                 )
         except Exception as exc:
             return {
                 "success": False,
                 "message": f"向量入库失败: {exc}",
-                "document_count": len({chunk.doc_path for chunk in chunks}),
+                "document_count": document_count,
                 "chunk_count": 0,
                 "embedding_mode": self.embedding.mode,
+                "elapsed_seconds": round(time.perf_counter() - started_at, 2),
             }
 
         return {
             "success": True,
             "message": "知识库入库完成",
-            "document_count": len({chunk.doc_path for chunk in chunks}),
+            "document_count": document_count,
             "chunk_count": len(chunks),
             "embedding_mode": self.embedding.mode,
             "collection": collection,
+            "elapsed_seconds": round(time.perf_counter() - started_at, 2),
         }
 
     def search(
@@ -202,13 +248,13 @@ class KnowledgeBaseService:
     ) -> List[Dict[str, Any]]:
         if not query.strip():
             return []
-        limit = top_k or self.settings.rag_top_k
 
+        limit = top_k or self.settings.rag_top_k
         try:
             self.ensure_collection()
 
             query_vector = self.embedding.embed_text(query)
-            must_conditions: List[models.FieldCondition] = self._build_must_conditions(
+            must_conditions = self._build_must_conditions(
                 city=city,
                 metadata_filters=metadata_filters,
             )
@@ -256,7 +302,6 @@ class KnowledgeBaseService:
     ) -> Any:
         collection_name = self.settings.qdrant_collection_kb
 
-        # Old qdrant-client API.
         if hasattr(self.client, "search"):
             return self.client.search(
                 collection_name=collection_name,
@@ -267,7 +312,6 @@ class KnowledgeBaseService:
                 with_vectors=False,
             )
 
-        # New qdrant-client API.
         if hasattr(self.client, "query_points"):
             return self._qdrant_query_points(
                 collection_name=collection_name,
@@ -293,14 +337,12 @@ class KnowledgeBaseService:
             "with_vectors": False,
         }
 
-        # Some versions use `query`, some use `query_vector`.
         for key in ("query", "query_vector"):
             try:
                 return self.client.query_points(**{key: query_vector, **base_kwargs})
             except TypeError:
                 continue
 
-        # Last fallback: positional query vector.
         return self.client.query_points(
             collection_name,
             query_vector,
@@ -362,11 +404,9 @@ class KnowledgeBaseService:
 
     @staticmethod
     def _parse_frontmatter(text: str) -> tuple[Dict[str, Any], str]:
-        # 兼容无 frontmatter 文档
         if not text.startswith("---"):
             return {}, text
 
-        # 优先使用 python-frontmatter 解析完整 YAML
         try:
             import frontmatter  # type: ignore
 
@@ -386,7 +426,6 @@ class KnowledgeBaseService:
         header = parts[1]
         content = parts[2]
 
-        # 次优先使用 PyYAML，支持多行 list/dict
         try:
             import yaml  # type: ignore
 
@@ -467,6 +506,7 @@ class KnowledgeBaseService:
         for doc in docs:
             if not self._metadata_match(doc["metadata"], metadata_filters):
                 continue
+
             text = str(doc["content"])
             low = text.lower()
             hit = 0
@@ -475,6 +515,7 @@ class KnowledgeBaseService:
                     hit += 1
             if hit <= 0:
                 continue
+
             preview = text.replace("\n", " ").strip()[:260]
             scored.append(
                 {

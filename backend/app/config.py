@@ -14,6 +14,7 @@ APP_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = APP_DIR.parent
 PROJECT_ROOT = BACKEND_DIR.parent
 DEFAULT_DB_PATH = (BACKEND_DIR / "trip_planner.db").resolve()
+DEFAULT_UPLOAD_DIR = (BACKEND_DIR / "uploads").resolve()
 
 
 def _load_env_files() -> None:
@@ -62,6 +63,7 @@ class Settings(BaseSettings):
     developer_email_whitelist: str = ""
 
     database_url: str = f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
+    upload_dir: str = str(DEFAULT_UPLOAD_DIR)
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_api_key: str = ""

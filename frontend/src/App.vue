@@ -10,8 +10,10 @@
                 <span class="account-text">已登录账号：{{ authState.user?.nickname || authState.user?.email || '旅行者' }}</span>
                 <span v-if="isDeveloperUser" class="developer-badge">开发者</span>
               </div>
+              <a-button type="text" :class="navButtonClass('/')" @click="goCommunity">社区交流</a-button>
               <a-button type="text" :class="navButtonClass('/planner')" @click="goPlanner">🧭 旅行规划</a-button>
               <a-button type="text" :class="navButtonClass('/tracks')" @click="goTracks">🗺️ 旅行轨迹</a-button>
+              <a-button type="text" :class="navButtonClass('/collab')" @click="goCollab">🤝 协同行程</a-button>
               <a-button
                 v-if="isDeveloperUser"
                 type="text"
@@ -50,15 +52,17 @@ const authState = useAuthState()
 
 const authenticated = computed(() => Boolean(authState.token && authState.user))
 const isDeveloperUser = computed(() => authState.user?.is_developer === true)
-const showAppHeader = computed(() => route.path !== '/')
+const showAppHeader = computed(() => authenticated.value || route.path !== '/')
 const navButtonClass = (path: string) => ({
   'nav-btn': true,
-  'nav-btn--active': route.path === path,
+  'nav-btn--active': path === '/' ? route.path === '/' : route.path === path || route.path.startsWith(`${path}/`),
 })
 
 const goBrandHome = () => router.push('/')
+const goCommunity = () => router.push('/')
 const goPlanner = () => router.push('/planner')
 const goTracks = () => router.push('/tracks')
+const goCollab = () => router.push('/collab')
 const goKBEval = () => router.push('/kb-eval')
 const goProfile = () => router.push('/profile')
 const goLogin = () => router.push('/login')

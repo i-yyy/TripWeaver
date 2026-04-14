@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from ...db.models import User
-from ...models.auth_schemas import OperationResponse, TravelTracksResponse
+from ...models.auth_schemas import OperationResponse, TravelTrackPlanResponse, TravelTracksResponse
 from ...services.security_service import get_current_user
 from ...services.tracks_service import get_tracks_service
 
@@ -32,3 +32,16 @@ async def delete_track(track_id: str, current_user: User = Depends(get_current_u
         raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to delete track: {exc}") from exc
+
+
+@router.get("/{track_id}/plan", response_model=TravelTrackPlanResponse, summary="Get saved trip plan for one track")
+async def get_track_plan(track_id: str, current_user: User = Depends(get_current_user)) -> TravelTrackPlanResponse:
+    try:
+        plan = get_tracks_service().get_track_plan(current_user.id, track_id)
+        if plan is None:
+            raise HTTPException(status_code=404, detail="Travel track plan not found")
+        return TravelTrackPlanResponse(success=True, message="Travel track plan fetched", data=plan)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch track plan: {exc}") from exc

@@ -8,6 +8,7 @@ from typing import Generator
 from sqlmodel import Session, SQLModel, create_engine
 
 from ..config import get_settings
+from . import models as _models  # Ensure SQLModel metadata is populated before create_all.
 
 settings = get_settings()
 
@@ -45,6 +46,8 @@ def _run_sqlite_migrations() -> None:
         _ensure_sqlite_column(connection, "users", "email", "VARCHAR(255)")
         _ensure_sqlite_column(connection, "users", "password_hash", "VARCHAR(255)")
         _ensure_sqlite_column(connection, "users", "nickname", "VARCHAR(255) NOT NULL DEFAULT ''")
+        _ensure_sqlite_column(connection, "users", "avatar_url", "VARCHAR(1024) NOT NULL DEFAULT ''")
+        _ensure_sqlite_column(connection, "users", "gender", "VARCHAR(40) NOT NULL DEFAULT ''")
         _ensure_sqlite_column(connection, "users", "is_active", "BOOLEAN NOT NULL DEFAULT 1")
         _ensure_sqlite_column(connection, "users", "last_login_at", "DATETIME")
         # SQLite cannot add a column with a non-constant default via ALTER TABLE,
@@ -54,11 +57,24 @@ def _run_sqlite_migrations() -> None:
             "UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL"
         )
         connection.exec_driver_sql("UPDATE users SET nickname = '' WHERE nickname IS NULL")
+        connection.exec_driver_sql("UPDATE users SET avatar_url = '' WHERE avatar_url IS NULL")
+        connection.exec_driver_sql("UPDATE users SET gender = '' WHERE gender IS NULL")
         connection.exec_driver_sql("UPDATE users SET is_active = 1 WHERE is_active IS NULL")
         connection.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email)")
 
         _ensure_sqlite_column(connection, "trip_histories", "city_longitude", "FLOAT")
         _ensure_sqlite_column(connection, "trip_histories", "city_latitude", "FLOAT")
+        _ensure_sqlite_column(connection, "community_posts", "linked_track_id", "VARCHAR(255) NOT NULL DEFAULT ''")
+        _ensure_sqlite_column(connection, "community_posts", "linked_track_title", "VARCHAR(255) NOT NULL DEFAULT ''")
+        connection.exec_driver_sql("UPDATE community_posts SET linked_track_id = '' WHERE linked_track_id IS NULL")
+        connection.exec_driver_sql("UPDATE community_posts SET linked_track_title = '' WHERE linked_track_title IS NULL")
+
+        _ensure_sqlite_column(connection, "collab_trips", "source_track_id", "VARCHAR(255) NOT NULL DEFAULT ''")
+        _ensure_sqlite_column(connection, "collab_trips", "start_date", "VARCHAR(40) NOT NULL DEFAULT ''")
+        _ensure_sqlite_column(connection, "collab_trips", "end_date", "VARCHAR(40) NOT NULL DEFAULT ''")
+        _ensure_sqlite_column(connection, "collab_trips", "version", "INTEGER NOT NULL DEFAULT 1")
+        _ensure_sqlite_column(connection, "collab_trip_invites", "invitee_email", "VARCHAR(255) NOT NULL DEFAULT ''")
+        _ensure_sqlite_column(connection, "collab_trip_invites", "responded_at", "DATETIME")
 
 
 def _ensure_sqlite_column(connection, table_name: str, column_name: str, column_sql: str) -> None:

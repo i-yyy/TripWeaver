@@ -176,7 +176,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import type { Dayjs } from 'dayjs'
@@ -260,6 +260,37 @@ const formData = reactive<LocalTripFormData>({
   travel_style: [],
   companions: [],
   mobility_needs: [],
+})
+
+onMounted(() => {
+  const rawSeed = sessionStorage.getItem('communityPlannerSeed')
+  if (!rawSeed) return
+
+  try {
+    const seed = JSON.parse(rawSeed) as {
+      city?: string
+      estimated_budget?: string
+      tags?: string[]
+      travel_style?: string[]
+      companions?: string[]
+      summary?: string
+      title?: string
+    }
+    formData.city = seed.city || formData.city
+    formData.budget_level = seed.estimated_budget || formData.budget_level
+    formData.travel_style = Array.isArray(seed.travel_style) ? seed.travel_style : formData.travel_style
+    formData.companions = Array.isArray(seed.companions) ? seed.companions : formData.companions
+    formData.preferences = Array.isArray(seed.tags)
+      ? seed.tags.filter((tag) => ['history', 'nature', 'food', 'shopping', 'museum'].includes(tag))
+      : formData.preferences
+    formData.free_text_input = seed.title
+      ? `参考社区路线「${seed.title}」：${seed.summary || ''}`
+      : formData.free_text_input
+    sessionStorage.removeItem('communityPlannerSeed')
+    message.success('已带入社区路线灵感，可以继续补充日期和偏好')
+  } catch {
+    sessionStorage.removeItem('communityPlannerSeed')
+  }
 })
 
 const smartSuggestionCards = computed(() => {

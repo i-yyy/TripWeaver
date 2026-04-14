@@ -370,13 +370,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 
 import DayRouteMap from '@/components/DayRouteMap.vue'
-import { getDayRouteDetail, submitFeedback } from '@/services/api'
+import { getCommunityPostPlan, getDayRouteDetail, getTravelTrackPlan, submitFeedback } from '@/services/api'
 import type {
   AppliedSkill,
   Attraction,
@@ -393,6 +393,7 @@ import type {
 import { useAuthState } from '@/utils/auth'
 
 const router = useRouter()
+const route = useRoute()
 const authState = useAuthState()
 const isDeveloperUser = computed(() => authState.user?.is_developer === true)
 const tripPlan = ref<TripPlan | null>(null)
@@ -707,7 +708,7 @@ const resultHeroTags = computed(() => {
   return tags.slice(0, 4)
 })
 
-onMounted(() => {
+onMounted(async () => {
   const data = sessionStorage.getItem('tripPlan')
   if (data) {
     tripPlan.value = JSON.parse(data)
@@ -715,6 +716,19 @@ onMounted(() => {
   const summary = sessionStorage.getItem('tripPlannerSummary')
   if (summary) {
     tripPlannerSummary.value = JSON.parse(summary)
+  }
+  if (!tripPlan.value) {
+    const postId = String(route.query.postId || '')
+    const trackId = String(route.query.trackId || '')
+    try {
+      const response = postId ? await getCommunityPostPlan(postId) : trackId ? await getTravelTrackPlan(trackId) : null
+      if (response?.success && response.data) {
+        tripPlan.value = response.data
+        sessionStorage.setItem('tripPlan', JSON.stringify(response.data))
+      }
+    } catch (error: any) {
+      message.error(error.message || '加载旅行规划失败')
+    }
   }
 })
 

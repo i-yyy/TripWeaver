@@ -3,6 +3,19 @@
 import type {
   BasicResponse,
   AuthChangePasswordPayload,
+  CommunityCommentResponse,
+  CommunityFeedResponse,
+  CommunityImageUploadResponse,
+  CommunityInteractionResponse,
+  CommunityPostCommentResponse,
+  CommunityPostFeedResponse,
+  CommunityProfileHomeResponse,
+  CommunityPostResponse,
+  CollabTripCommentResponse,
+  CollabTripInviteResponse,
+  CollabTripListResponse,
+  CollabTripResponse,
+  CollabTripVoteResponse,
   DayRoutePayload,
   DayRouteResponse,
   AuthLoginPayload,
@@ -14,6 +27,7 @@ import type {
   KBEvaluatePayload,
   KBEvaluateResponse,
   TravelTracksResponse,
+  TravelTrackPlanResponse,
   TripFormData,
   TripPlanResponse,
   UpdateProfilePayload,
@@ -22,6 +36,18 @@ import type {
 import { clearAuthSession, getAccessToken } from '@/utils/auth'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const API_BASE_URL_NORMALIZED = API_BASE_URL.replace(/\/$/, '')
+
+export function resolveMediaUrl(url?: string | null) {
+  if (!url) return ''
+  if (/^(https?:)?\/\//.test(url) || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url
+  }
+  if (url.startsWith('/')) {
+    return `${API_BASE_URL_NORMALIZED}${url}`
+  }
+  return url
+}
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -88,6 +114,21 @@ export async function updateAccountProfile(payload: UpdateProfilePayload): Promi
   }
 }
 
+export async function uploadAccountAvatar(file: File): Promise<AuthUserResponse> {
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await apiClient.post<AuthUserResponse>('/api/auth/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '上传头像失败')
+  }
+}
+
 export async function changeAccountPassword(payload: AuthChangePasswordPayload): Promise<AuthUserResponse> {
   try {
     const response = await apiClient.put<AuthUserResponse>('/api/auth/password', payload)
@@ -142,6 +183,15 @@ export async function getTravelTracks(): Promise<TravelTracksResponse> {
   }
 }
 
+export async function getTravelTrackPlan(trackId: string): Promise<TravelTrackPlanResponse> {
+  try {
+    const response = await apiClient.get<TravelTrackPlanResponse>(`/api/tracks/${trackId}/plan`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '获取旅行规划失败')
+  }
+}
+
 export async function deleteTravelTrack(trackId: string): Promise<BasicResponse> {
   try {
     const response = await apiClient.delete<BasicResponse>(`/api/tracks/${trackId}`)
@@ -166,6 +216,239 @@ export async function evaluateKnowledgeBase(payload: KBEvaluatePayload): Promise
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.detail || error.message || '知识库评估失败')
+  }
+}
+
+export async function getCommunityFeed(limit = 8, refreshToken = ''): Promise<CommunityFeedResponse> {
+  try {
+    const response = await apiClient.get<CommunityFeedResponse>('/api/community/feed', {
+      params: { limit, refresh_token: refreshToken },
+    })
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '获取社区推荐失败')
+  }
+}
+
+export async function toggleCommunityCardLike(cardId: string): Promise<CommunityInteractionResponse> {
+  try {
+    const response = await apiClient.post<CommunityInteractionResponse>(`/api/community/cards/${cardId}/like`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '更新喜欢状态失败')
+  }
+}
+
+export async function toggleCommunityCardFavorite(cardId: string): Promise<CommunityInteractionResponse> {
+  try {
+    const response = await apiClient.post<CommunityInteractionResponse>(`/api/community/cards/${cardId}/favorite`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '更新收藏状态失败')
+  }
+}
+
+export async function reuseCommunityCard(cardId: string): Promise<CommunityInteractionResponse> {
+  try {
+    const response = await apiClient.post<CommunityInteractionResponse>(`/api/community/cards/${cardId}/reuse`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '记录复用失败')
+  }
+}
+
+export async function addCommunityCardComment(cardId: string, content: string): Promise<CommunityCommentResponse> {
+  try {
+    const response = await apiClient.post<CommunityCommentResponse>(`/api/community/cards/${cardId}/comments`, {
+      content,
+    })
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '发表评论失败')
+  }
+}
+
+export async function getCommunityPosts(limit = 20): Promise<CommunityPostFeedResponse> {
+  try {
+    const response = await apiClient.get<CommunityPostFeedResponse>('/api/community/posts', {
+      params: { limit },
+    })
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '获取社区动态失败')
+  }
+}
+
+export async function getMyCommunityProfile(limit = 60): Promise<CommunityProfileHomeResponse> {
+  try {
+    const response = await apiClient.get<CommunityProfileHomeResponse>('/api/community/profile/me', {
+      params: { limit },
+    })
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '获取个人主页失败')
+  }
+}
+
+export async function publishCommunityPost(payload: {
+  content: string
+  image_urls: string[]
+  city: string
+  tags: string[]
+  linked_track_id?: string
+  linked_track_title?: string
+}): Promise<CommunityPostResponse> {
+  try {
+    const response = await apiClient.post<CommunityPostResponse>('/api/community/posts', payload)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '发布动态失败')
+  }
+}
+
+export async function uploadCommunityImage(file: File): Promise<CommunityImageUploadResponse> {
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+    const response = await apiClient.post<CommunityImageUploadResponse>('/api/community/uploads/image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '上传图片失败')
+  }
+}
+
+export async function toggleCommunityPostLike(postId: string): Promise<CommunityInteractionResponse> {
+  try {
+    const response = await apiClient.post<CommunityInteractionResponse>(`/api/community/posts/${postId}/like`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '更新动态喜欢失败')
+  }
+}
+
+export async function addCommunityPostComment(postId: string, content: string): Promise<CommunityPostCommentResponse> {
+  try {
+    const response = await apiClient.post<CommunityPostCommentResponse>(`/api/community/posts/${postId}/comments`, {
+      content,
+    })
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '评论动态失败')
+  }
+}
+
+export async function getCommunityPostPlan(postId: string): Promise<TripPlanResponse> {
+  try {
+    const response = await apiClient.get<TripPlanResponse>(`/api/community/posts/${postId}/plan`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '获取帖子关联规划失败')
+  }
+}
+
+export async function toggleCommunityAuthorFollow(userId: string): Promise<CommunityInteractionResponse> {
+  try {
+    const response = await apiClient.post<CommunityInteractionResponse>(`/api/community/users/${userId}/follow`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '关注状态更新失败')
+  }
+}
+
+export async function getCollabTrips(): Promise<CollabTripListResponse> {
+  try {
+    const response = await apiClient.get<CollabTripListResponse>('/api/collab/trips')
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '获取协同行程失败')
+  }
+}
+
+export async function createCollabTrip(payload: { source_track_id: string; title?: string }): Promise<CollabTripResponse> {
+  try {
+    const response = await apiClient.post<CollabTripResponse>('/api/collab/trips', payload)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '创建协同行程失败')
+  }
+}
+
+export async function getCollabTrip(tripId: string): Promise<CollabTripResponse> {
+  try {
+    const response = await apiClient.get<CollabTripResponse>(`/api/collab/trips/${tripId}`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '获取协同行程详情失败')
+  }
+}
+
+export async function deleteCollabTrip(tripId: string): Promise<BasicResponse> {
+  try {
+    const response = await apiClient.delete<BasicResponse>(`/api/collab/trips/${tripId}`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '删除协同行程失败')
+  }
+}
+
+export async function updateCollabTripPlan(
+  tripId: string,
+  payload: { plan_json: Record<string, unknown>; summary?: string },
+): Promise<CollabTripResponse> {
+  try {
+    const response = await apiClient.put<CollabTripResponse>(`/api/collab/trips/${tripId}/plan`, payload)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '保存协同行程失败')
+  }
+}
+
+export async function inviteCollabTripMember(
+  tripId: string,
+  payload: { identifier: string; role: string },
+): Promise<CollabTripInviteResponse> {
+  try {
+    const response = await apiClient.post<CollabTripInviteResponse>(`/api/collab/trips/${tripId}/invites`, payload)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '邀请好友失败')
+  }
+}
+
+export async function respondCollabInvite(inviteId: string, action: 'accept' | 'reject'): Promise<CollabTripInviteResponse> {
+  try {
+    const response = await apiClient.post<CollabTripInviteResponse>(`/api/collab/invites/${inviteId}/${action}`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '处理邀请失败')
+  }
+}
+
+export async function addCollabTripComment(
+  tripId: string,
+  payload: { content: string; day_index?: number | null },
+): Promise<CollabTripCommentResponse> {
+  try {
+    const response = await apiClient.post<CollabTripCommentResponse>(`/api/collab/trips/${tripId}/comments`, payload)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '发送协同评论失败')
+  }
+}
+
+export async function voteCollabTripItem(
+  tripId: string,
+  payload: { target_type: string; target_id: string; vote_type: string },
+): Promise<CollabTripVoteResponse> {
+  try {
+    const response = await apiClient.post<CollabTripVoteResponse>(`/api/collab/trips/${tripId}/votes`, payload)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '更新投票失败')
   }
 }
 

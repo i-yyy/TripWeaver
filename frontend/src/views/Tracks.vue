@@ -50,6 +50,9 @@
                       <strong>{{ track.city }}</strong>
                       <span v-if="!hasCoordinates(track)" class="track-pill">定位补全中</span>
                     </div>
+                    <a-button size="small" :disabled="!hasCoordinates(track)" @click="focusTrack(track)">
+                      地图定位
+                    </a-button>
                     <a-popconfirm title="确认删除这条旅行记录吗" ok-text="删除" cancel-text="取消" @confirm="deleteTrack(track)">
                       <a-button
                         size="small"
@@ -62,7 +65,7 @@
                     </a-popconfirm>
                   </div>
 
-                  <button class="track-item__main" type="button" @click="focusTrack(track)">
+                  <button class="track-item__main" type="button" @click="openTrackPlan(track)">
                     <span>{{ formatDateTime(track.searched_at) }}</span>
                     <span>{{ track.start_date }} - {{ track.end_date }}</span>
                     <small>{{ track.trip_summary || '杩欎竴娆℃梾琛屽凡缁忚璁板綍涓嬫潵' }}</small>
@@ -89,15 +92,17 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import AMapLoader from '@amap/amap-jsapi-loader'
 
-import { deleteTravelTrack, getTravelTracks } from '@/services/api'
+import { deleteTravelTrack, getTravelTrackPlan, getTravelTracks } from '@/services/api'
 import type { TravelTrackItem } from '@/types'
 import { AMAP_MAP_STYLE } from '@/utils/mapStyle'
 
 const amapKey = import.meta.env.VITE_AMAP_API_KEY || ''
 const amapSecurityJsCode = import.meta.env.VITE_AMAP_SECURITY_JS_CODE || ''
+const router = useRouter()
 const loading = ref(false)
 const deletingTrackId = ref('')
 const tracks = ref<TravelTrackItem[]>([])
@@ -363,6 +368,21 @@ const focusTrack = (track: TravelTrackItem) => {
   }
   infoWindow?.setContent(buildInfoHtml(track))
   infoWindow?.open(mapInstance, [track.city_longitude, track.city_latitude])
+}
+
+const openTrackPlan = async (track: TravelTrackItem) => {
+  try {
+    const response = await getTravelTrackPlan(track.id)
+    if (!response.success || !response.data) {
+      throw new Error(response.message || '没有找到这条旅行规划')
+    }
+    sessionStorage.setItem('tripPlan', JSON.stringify(response.data))
+    sessionStorage.setItem('tripPlannerSessionId', track.id)
+    sessionStorage.removeItem('tripPlannerSummary')
+    router.push({ path: '/result', query: { trackId: track.id } })
+  } catch (error: any) {
+    message.error(error.message || '打开旅行规划失败')
+  }
 }
 
 const loadTracks = async () => {

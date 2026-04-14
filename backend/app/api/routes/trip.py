@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from time import perf_counter
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -40,6 +41,7 @@ async def plan_trip(
     current_user: User = Depends(get_current_user),
 ) -> TripPlanResponse:
     try:
+        started_at = perf_counter()
         request.user_id = current_user.id
         profile_service = get_profile_service()
         memory_service = get_memory_service()
@@ -47,9 +49,16 @@ async def plan_trip(
         skill_service = get_skill_service()
         planner = get_trip_planner_agent()
 
+        profile_started_at = perf_counter()
         profile_service.update_profile_from_request(request)
         memory_service.save_session_facts(request)
+        logger.info(
+            "⏱️ Trip API profile/session prepared city=%s elapsed=%.2fs",
+            request.city,
+            perf_counter() - profile_started_at,
+        )
 
+        memory_started_at = perf_counter()
         profile_context = profile_service.build_profile_context(request.user_id)
         memories = memory_service.get_relevant_memories(
             user_id=request.user_id,
@@ -61,7 +70,14 @@ async def plan_trip(
             session_id=request.session_id,
             city=request.city,
         )
+        logger.info(
+            "⏱️ Trip API memory context prepared city=%s elapsed=%.2fs memories=%s",
+            request.city,
+            perf_counter() - memory_started_at,
+            len(memories),
+        )
 
+        rag_started_at = perf_counter()
         rag_bundle = retriever_service.retrieve_trip_bundle(
             request=request,
             profile_context=profile_context,
@@ -74,13 +90,30 @@ async def plan_trip(
             else RecommendationReason.model_validate(reason)
             for reason in rag_bundle.get("recommendation_reasons", [])
         ]
+        logger.info(
+            "⏱️ Trip API rag prepared city=%s elapsed=%.2fs recall=%s rerank=%s reasons=%s",
+            request.city,
+            perf_counter() - rag_started_at,
+            rag_bundle.get("recall_count", 0),
+            rag_bundle.get("rerank_count", 0),
+            len(recommendation_reasons),
+        )
+
+        skill_started_at = perf_counter()
         static_skills = skill_service.select_static_skills(
             request=request,
             profile_context=profile_context,
             memory_context=memory_context,
             rag_context=rag_context,
         )
+        logger.info(
+            "⏱️ Trip API skills prepared city=%s elapsed=%.2fs skills=%s",
+            request.city,
+            perf_counter() - skill_started_at,
+            len(static_skills),
+        )
 
+        planner_started_at = perf_counter()
         trip_plan = await planner.plan_trip(
             request=request,
             profile_context=profile_context,
@@ -90,8 +123,21 @@ async def plan_trip(
             skills=static_skills,
         )
         trip_plan.recommendation_reasons = recommendation_reasons
+        logger.info(
+            "⏱️ Trip API planner completed city=%s elapsed=%.2fs days=%s",
+            request.city,
+            perf_counter() - planner_started_at,
+            len(trip_plan.days),
+        )
 
+        save_started_at = perf_counter()
         memory_service.save_trip_summary(request, trip_plan)
+        logger.info(
+            "⏱️ Trip API summary saved city=%s elapsed=%.2fs total_elapsed=%.2fs",
+            request.city,
+            perf_counter() - save_started_at,
+            perf_counter() - started_at,
+        )
         return TripPlanResponse(success=True, message="Trip plan generated successfully", data=trip_plan)
     except Exception as exc:
         logger.exception("Failed to generate trip plan")
