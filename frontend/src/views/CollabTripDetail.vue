@@ -476,16 +476,17 @@ const formatTime = (value: string) => {
 <style scoped>
 .collab-detail {
   display: grid;
-  gap: 22px;
+  gap: 24px;
 }
 
 .collab-detail-hero,
 .collab-plan-panel,
 .collab-side-panel section {
-  border: 1px solid rgba(71, 153, 136, 0.24);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.93);
-  box-shadow: 0 18px 42px rgba(82, 138, 208, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 24px 60px rgba(65, 110, 168, 0.14);
+  backdrop-filter: blur(18px);
 }
 
 .collab-detail-hero {
@@ -493,15 +494,16 @@ const formatTime = (value: string) => {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 28px;
-  background: linear-gradient(120deg, rgba(242, 250, 247, 0.97), rgba(232, 244, 255, 0.9)), #f7fbff;
+  padding: 36px;
+  background: #eaf5ff;
+  overflow: hidden;
 }
 
 .collab-back {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #21756b;
+  color: var(--brand-primary);
   font-weight: 800;
   cursor: pointer;
 }
@@ -514,7 +516,8 @@ const formatTime = (value: string) => {
 .collab-comment strong,
 .collab-change strong {
   margin: 0;
-  color: #17324f;
+  color: #111111;
+  font-weight: 800;
 }
 
 .collab-detail-hero h1 {
@@ -530,7 +533,7 @@ const formatTime = (value: string) => {
 .collab-comment p,
 .collab-change p {
   margin: 0;
-  color: #64748b;
+  color: var(--brand-muted);
   line-height: 1.65;
 }
 
@@ -553,7 +556,7 @@ const formatTime = (value: string) => {
 
 .collab-plan-panel,
 .collab-side-panel section {
-  padding: 22px;
+  padding: 26px;
 }
 
 .collab-side-panel {
@@ -586,15 +589,16 @@ const formatTime = (value: string) => {
 .collab-comment,
 .collab-change {
   border: 1px solid rgba(82, 138, 208, 0.18);
-  border-radius: 8px;
-  background: rgba(247, 251, 255, 0.88);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.1);
 }
 
 .collab-day-card {
   display: grid;
   gap: 16px;
   padding: 20px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .collab-overview-grid {
@@ -608,20 +612,20 @@ const formatTime = (value: string) => {
   display: grid;
   gap: 8px;
   padding: 16px;
-  background: rgba(242, 250, 247, 0.92);
+  background: rgba(239, 246, 255, 0.92);
 }
 
 .collab-stat-card span,
 .collab-advice-card span,
 .collab-info-card span {
-  color: #21756b;
+  color: var(--brand-primary);
   font-size: 13px;
   font-weight: 800;
 }
 
 .collab-stat-card strong {
   overflow-wrap: anywhere;
-  color: #17324f;
+  color: var(--brand-text);
   font-size: 22px;
 }
 
@@ -630,7 +634,7 @@ const formatTime = (value: string) => {
   gap: 12px;
   margin-bottom: 16px;
   padding: 18px;
-  background: rgba(247, 251, 255, 0.92);
+  background: rgba(255, 255, 255, 0.86);
 }
 
 .collab-advice-card p,
@@ -650,11 +654,11 @@ const formatTime = (value: string) => {
   display: grid;
   gap: 8px;
   padding: 14px;
-  background: rgba(247, 251, 255, 0.9);
+  background: rgba(239, 246, 255, 0.72);
 }
 
 .collab-info-card strong {
-  color: #17324f;
+  color: var(--brand-text);
   font-size: 18px;
 }
 
@@ -664,7 +668,7 @@ const formatTime = (value: string) => {
 
 .collab-day-card__head span,
 .collab-subtitle {
-  color: #21756b;
+  color: var(--brand-primary);
   font-size: 13px;
   font-weight: 800;
 }
@@ -672,10 +676,10 @@ const formatTime = (value: string) => {
 .collab-comment-jump {
   min-height: 32px;
   padding: 0 10px;
-  border: 1px solid rgba(33, 117, 107, 0.28);
-  border-radius: 8px;
+  border: 1px solid rgba(45, 134, 231, 0.28);
+  border-radius: 999px;
   background: #ffffff;
-  color: #21756b;
+  color: var(--brand-primary);
   font-weight: 800;
   cursor: pointer;
 }
@@ -684,7 +688,7 @@ const formatTime = (value: string) => {
   display: grid;
   gap: 12px;
   padding: 16px;
-  background: rgba(242, 250, 247, 0.86);
+  background: rgba(239, 246, 255, 0.74);
 }
 
 .collab-hotel-card__body {
@@ -696,14 +700,14 @@ const formatTime = (value: string) => {
 
 .collab-hotel-card strong,
 .collab-meal-card strong {
-  color: #17324f;
+  color: var(--brand-text);
   font-size: 17px;
 }
 
 .collab-hotel-card p,
 .collab-meal-card p {
   margin: 6px 0 0;
-  color: #64748b;
+  color: var(--brand-muted);
   line-height: 1.6;
 }
 
@@ -715,9 +719,9 @@ const formatTime = (value: string) => {
 
 .collab-mini-metrics span {
   padding: 5px 9px;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #315067;
+  border-radius: 999px;
+  background: rgba(45, 134, 231, 0.12);
+  color: #1d5d9b;
   font-size: 13px;
   font-weight: 800;
 }
@@ -728,14 +732,14 @@ const formatTime = (value: string) => {
   align-items: stretch;
   gap: 14px;
   padding: 14px;
-  background: #ffffff;
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .collab-attraction-row__image {
   width: 100%;
   height: 100%;
   min-height: 132px;
-  border-radius: 8px;
+  border-radius: 18px;
   object-fit: cover;
 }
 
@@ -769,15 +773,15 @@ const formatTime = (value: string) => {
   display: grid;
   gap: 8px;
   padding: 14px;
-  background: rgba(247, 251, 255, 0.9);
+  background: rgba(255, 255, 255, 0.86);
 }
 
 .collab-meal-card span {
   width: fit-content;
   padding: 5px 9px;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #21756b;
+  border-radius: 999px;
+  background: rgba(45, 134, 231, 0.12);
+  color: #1d5d9b;
   font-weight: 800;
 }
 
@@ -793,7 +797,7 @@ const formatTime = (value: string) => {
 .collab-user-row__avatar {
   width: 44px;
   height: 44px;
-  border-radius: 8px;
+  border-radius: 50%;
 }
 
 .collab-user-row img {

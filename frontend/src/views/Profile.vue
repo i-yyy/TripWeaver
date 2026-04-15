@@ -427,7 +427,7 @@ const formatDate = (value?: string) => {
 <style scoped>
 .profile-home {
   display: grid;
-  gap: 22px;
+  gap: 24px;
 }
 
 .profile-cover {
@@ -435,13 +435,13 @@ const formatDate = (value?: string) => {
   align-items: center;
   justify-content: space-between;
   gap: 22px;
-  padding: 34px;
-  border: 1px solid rgba(71, 153, 136, 0.24);
-  border-radius: 8px;
-  background:
-    linear-gradient(120deg, rgba(242, 250, 247, 0.96), rgba(232, 244, 255, 0.9)),
-    #f7fbff;
-  box-shadow: 0 22px 52px rgba(61, 118, 139, 0.14);
+  padding: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 28px;
+  background: #eaf5ff;
+  box-shadow: 0 24px 60px rgba(65, 110, 168, 0.14);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
 }
 
 .profile-cover__identity {
@@ -456,13 +456,14 @@ const formatDate = (value?: string) => {
   width: 112px;
   height: 112px;
   flex: 0 0 auto;
-  border-radius: 8px;
+  border-radius: 50%;
 }
 
 .profile-cover__avatar {
   object-fit: cover;
   display: block;
   border: 4px solid #ffffff;
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.18);
 }
 
 .profile-avatar-fallback {
@@ -472,6 +473,7 @@ const formatDate = (value?: string) => {
   color: #ffffff;
   font-size: 34px;
   font-weight: 800;
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.18);
 }
 
 .profile-cover__copy {
@@ -483,14 +485,14 @@ const formatDate = (value?: string) => {
 .profile-cover__copy h1 {
   margin: 0;
   overflow-wrap: anywhere;
-  color: #17324f;
+  color: #111111;
   font-size: 38px;
   line-height: 1.15;
 }
 
 .profile-cover__copy p {
   margin: 0;
-  color: #64748b;
+  color: var(--brand-muted);
   font-size: 16px;
 }
 
@@ -506,27 +508,27 @@ const formatDate = (value?: string) => {
 .profile-cover__badges span,
 .profile-post-card__tags span {
   padding: 5px 9px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.86);
-  color: #315067;
+  border-radius: 999px;
+  background: rgba(45, 134, 231, 0.12);
+  color: #1d5d9b;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .profile-edit-entry {
   min-height: 42px;
   padding: 0 18px;
   border: 0;
-  border-radius: 8px;
-  background: #21756b;
+  border-radius: 999px;
+  background: var(--brand-primary);
   color: #ffffff;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 12px 24px rgba(33, 117, 107, 0.22);
+  box-shadow: 0 12px 24px rgba(45, 134, 231, 0.22);
 }
 
 .profile-edit-entry:hover {
-  background: #185f58;
+  background: var(--brand-primary-deep);
 }
 
 .profile-stats-row {
@@ -541,12 +543,13 @@ const formatDate = (value?: string) => {
   align-content: center;
   gap: 8px;
   padding: 18px;
-  border: 1px solid rgba(82, 138, 208, 0.18);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #17324f;
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--brand-text);
   text-align: left;
-  box-shadow: 0 16px 36px rgba(82, 138, 208, 0.12);
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.12);
+  backdrop-filter: blur(18px);
 }
 
 button.profile-stat-tile {
@@ -554,7 +557,7 @@ button.profile-stat-tile {
 }
 
 .profile-stat-tile span {
-  color: #64748b;
+  color: var(--brand-muted);
   font-weight: 700;
 }
 
@@ -579,11 +582,12 @@ button.profile-stat-tile {
 
 .profile-main-column,
 .profile-side-column {
-  padding: 24px;
-  border: 1px solid rgba(82, 138, 208, 0.18);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 16px 36px rgba(82, 138, 208, 0.12);
+  padding: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 24px 60px rgba(65, 110, 168, 0.14);
+  backdrop-filter: blur(18px);
 }
 
 .profile-section-head {
@@ -600,14 +604,15 @@ button.profile-stat-tile {
 .profile-section-head h2,
 .profile-edit-panel h3 {
   margin: 0;
-  color: #17324f;
+  color: #111111;
+  font-weight: 800;
 }
 
 .profile-section-head p,
 .profile-edit-panel p,
 .profile-user-row p {
   margin: 6px 0 0;
-  color: #64748b;
+  color: var(--brand-muted);
   line-height: 1.6;
 }
 
@@ -619,14 +624,15 @@ button.profile-stat-tile {
 
 .profile-post-card {
   overflow: hidden;
-  border: 1px solid rgba(82, 138, 208, 0.2);
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid rgba(191, 214, 239, 0.76);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.12);
 }
 
 .profile-post-card__image {
   aspect-ratio: 1;
-  background: #e7f3ff;
+  background: rgba(239, 246, 255, 0.92);
 }
 
 .profile-post-card__image img,
@@ -645,7 +651,7 @@ button.profile-stat-tile {
   align-items: center;
   justify-content: center;
   padding: 16px;
-  color: #315067;
+  color: #1d5d9b;
   font-weight: 800;
   text-align: center;
 }
@@ -670,6 +676,7 @@ button.profile-stat-tile {
 .profile-post-card__meta,
 .profile-post-card__footer {
   color: #8a99aa;
+  color: #5f7893;
   font-size: 13px;
   font-weight: 700;
 }
@@ -685,16 +692,16 @@ button.profile-stat-tile {
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border: 1px solid rgba(71, 153, 136, 0.18);
-  border-radius: 8px;
-  background: rgba(247, 251, 255, 0.9);
+  border: 1px solid rgba(191, 214, 239, 0.76);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.84);
 }
 
 .profile-user-row img,
 .profile-user-row__avatar {
   width: 46px;
   height: 46px;
-  border-radius: 8px;
+  border-radius: 50%;
 }
 
 .profile-user-row img {
@@ -713,16 +720,18 @@ button.profile-stat-tile {
 .profile-user-row strong {
   display: block;
   overflow: hidden;
-  color: #17324f;
+  color: var(--brand-text);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .profile-edit-panel section {
   padding: 18px;
-  border: 1px solid rgba(82, 138, 208, 0.18);
-  border-radius: 8px;
-  background: rgba(247, 251, 255, 0.86);
+  border: 1px solid rgba(191, 214, 239, 0.76);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.1);
+  backdrop-filter: blur(18px);
 }
 
 .profile-avatar-editor {
@@ -731,14 +740,14 @@ button.profile-stat-tile {
   align-items: center;
   gap: 16px;
   padding: 16px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.84);
+  border-radius: 18px;
+  background: rgba(239, 246, 255, 0.72);
 }
 
 .profile-avatar-preview {
   width: 86px;
   height: 86px;
-  border-radius: 8px;
+  border-radius: 50%;
   object-fit: cover;
   display: block;
 }

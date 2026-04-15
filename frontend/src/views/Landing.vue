@@ -30,7 +30,7 @@
 
           <div class="landing-actions">
             <template v-if="authenticated">
-              <button class="landing-action landing-action--primary" type="button" @click="goPlanner">🧭 进入旅行规划</button>
+              <button class="landing-action landing-action--primary" type="button" @click="goCommunity">💬 进入社区交流</button>
               <button class="landing-action landing-action--secondary" type="button" @click="goTracks">🗺️ 查看旅行轨迹</button>
             </template>
             <template v-else>
@@ -89,7 +89,7 @@ const authenticated = computed(() => Boolean(authState.token && authState.user))
 
 const goLogin = () => router.push('/login')
 const goRegister = () => router.push('/register')
-const goPlanner = () => router.push('/planner')
+const goCommunity = () => router.push('/community')
 const goTracks = () => router.push('/tracks')
 </script>
 

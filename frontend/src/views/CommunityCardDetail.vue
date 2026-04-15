@@ -284,7 +284,7 @@ const useCard = async () => {
   router.push('/planner')
 }
 
-const goBack = () => router.push('/')
+const goBack = () => router.push('/community')
 
 const formatTime = (value: string) => new Date(value).toLocaleString('zh-CN')
 

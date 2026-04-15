@@ -10,7 +10,7 @@
 
         <div class="brand-stat-grid tracks-stats">
           <div class="brand-stat">
-            <span>鎬昏褰曟暟</span>
+            <span>总记录数</span>
             <strong>{{ sortedTracks.length }}</strong>
           </div>
           <div class="brand-stat">
@@ -68,7 +68,7 @@
                   <button class="track-item__main" type="button" @click="openTrackPlan(track)">
                     <span>{{ formatDateTime(track.searched_at) }}</span>
                     <span>{{ track.start_date }} - {{ track.end_date }}</span>
-                    <small>{{ track.trip_summary || '杩欎竴娆℃梾琛屽凡缁忚璁板綍涓嬫潵' }}</small>
+                    <small>{{ track.trip_summary || '这一趟旅行已经被记录下来' }}</small>
                   </button>
                 </div>
               </div>
@@ -82,7 +82,8 @@
             <p>支持鼠标滚轮缩放和拖拽查看，播放时会按时间顺序展示你的旅行轨迹</p>
           </div>
           <div v-if="!amapKey" class="map-placeholder">
-            璇峰厛鍦ㄥ墠绔幆澧冨彉閲忎腑閰嶇疆鍦板浘瀵嗛挜 `VITE_AMAP_API_KEY`锛屽湴鍥鹃〉闈㈡墠鑳藉姞杞?          </div>
+            请先在前端环境变量中配置地图密钥 `VITE_AMAP_API_KEY`，地图页面才能加载
+          </div>
           <div v-else ref="mapContainer" class="map-canvas"></div>
         </section>
       </div>
@@ -393,7 +394,7 @@ const loadTracks = async () => {
     stopPlayback(false, false)
     refreshMarkers()
   } catch (error: any) {
-    message.error(error.message || '鍔犺浇鏃呰杞ㄨ抗澶辫触')
+    message.error(error.message || '加载旅行轨迹失败')
   } finally {
     loading.value = false
   }
@@ -409,7 +410,7 @@ const deleteTrack = async (track: TravelTrackItem) => {
     refreshMarkers()
     message.success('已删除这条旅行记录')
   } catch (error: any) {
-    message.error(error.message || '鍒犻櫎鏃呰杞ㄨ抗澶辫触')
+    message.error(error.message || '删除旅行轨迹失败')
   } finally {
     deletingTrackId.value = ''
   }
@@ -422,7 +423,7 @@ onMounted(async () => {
       await initMap()
     }
   } catch (error: any) {
-    message.error(error.message || '鍔犺浇鍦板浘澶辫触')
+    message.error(error.message || '加载地图失败')
   }
 })
 
@@ -438,11 +439,17 @@ onUnmounted(() => {
 <style scoped>
 .tracks-shell {
   display: grid;
-  gap: 22px;
+  gap: 24px;
 }
 
 .tracks-hero-panel {
-  padding: 24px;
+  padding: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 28px;
+  background: #eaf5ff;
+  box-shadow: 0 24px 60px rgba(65, 110, 168, 0.14);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
 }
 
 .tracks-layout {
@@ -454,14 +461,21 @@ onUnmounted(() => {
 .tracks-map-panel {
   display: flex;
   flex-direction: column;
-  padding: 24px;
-  height: clamp(480px, calc(100vh - 360px), 620px);
-  min-height: 480px;
+  padding: 26px;
+  height: clamp(640px, calc(100vh - 240px), 860px);
+  min-height: 640px;
   overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 24px 60px rgba(65, 110, 168, 0.14);
+  backdrop-filter: blur(18px);
 }
 
 .tracks-title {
+  color: #111111;
   font-size: clamp(32px, 3.8vw, 48px);
+  letter-spacing: 0;
 }
 
 .tracks-stats {
@@ -476,8 +490,8 @@ onUnmounted(() => {
 .tracks-playback-button {
   width: 100%;
   min-height: 46px;
-  border-radius: 14px;
-  font-weight: 700;
+  border-radius: 999px;
+  font-weight: 800;
 }
 
 .tracks-list-heading {
@@ -531,21 +545,23 @@ onUnmounted(() => {
   gap: 10px;
   margin-top: 12px;
   padding: 16px 18px;
-  border: 1px solid rgba(255, 255, 255, 0.52);
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(191, 214, 239, 0.76);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.84);
   color: var(--brand-text);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.1);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .track-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 14px 28px rgba(66, 109, 166, 0.12);
+  border-color: rgba(45, 134, 231, 0.42);
+  transform: translateY(-4px);
+  box-shadow: 0 24px 44px rgba(77, 122, 181, 0.16);
 }
 
 .track-item--active {
-  border-color: rgba(84, 151, 230, 0.76);
-  background: linear-gradient(135deg, rgba(231, 242, 255, 0.92), rgba(245, 250, 255, 0.95));
+  border-color: rgba(45, 134, 231, 0.5);
+  background: rgba(239, 246, 255, 0.92);
   box-shadow: 0 16px 30px rgba(82, 138, 208, 0.16);
 }
 
@@ -588,12 +604,12 @@ onUnmounted(() => {
 .track-pill {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
+  padding: 5px 10px;
   border-radius: 999px;
-  background: rgba(231, 240, 255, 0.92);
-  color: #356ca8 !important;
-  font-size: 16px;
-  font-weight: 700;
+  background: rgba(45, 134, 231, 0.12);
+  color: #1d5d9b !important;
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .tracks-map-heading {
@@ -607,6 +623,8 @@ onUnmounted(() => {
   min-height: 0;
   border-radius: 22px;
   overflow: hidden;
+  border: 1px solid rgba(191, 214, 239, 0.76);
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.1);
 }
 
 .map-placeholder {
@@ -614,7 +632,7 @@ onUnmounted(() => {
   place-items: center;
   padding: 24px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.84);
   color: var(--brand-muted);
 }
 
