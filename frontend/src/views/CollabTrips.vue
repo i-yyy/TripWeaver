@@ -227,15 +227,16 @@ const roleLabel = (role: string) => {
 <style scoped>
 .collab-page {
   display: grid;
-  gap: 22px;
+  gap: 24px;
 }
 
 .collab-hero,
 .collab-panel {
-  border: 1px solid rgba(71, 153, 136, 0.24);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 18px 42px rgba(82, 138, 208, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.56);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 24px 60px rgba(65, 110, 168, 0.14);
+  backdrop-filter: blur(18px);
 }
 
 .collab-hero {
@@ -243,15 +244,17 @@ const roleLabel = (role: string) => {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  padding: 32px;
-  background: linear-gradient(120deg, rgba(242, 250, 247, 0.97), rgba(232, 244, 255, 0.9)), #f7fbff;
+  padding: 42px;
+  background: #eaf5ff;
+  overflow: hidden;
 }
 
 .collab-hero h1 {
   margin: 8px 0;
-  color: #17324f;
-  font-size: 38px;
+  color: var(--brand-text);
+  font-size: 42px;
   line-height: 1.15;
+  letter-spacing: 0;
 }
 
 .collab-hero p,
@@ -259,12 +262,12 @@ const roleLabel = (role: string) => {
 .collab-trip-card p,
 .collab-invite-card p {
   margin: 0;
-  color: #64748b;
+  color: var(--brand-muted);
   line-height: 1.7;
 }
 
 .collab-panel {
-  padding: 24px;
+  padding: 26px;
 }
 
 .collab-section-head,
@@ -285,7 +288,8 @@ const roleLabel = (role: string) => {
 .collab-section-head h2,
 .collab-trip-card h3 {
   margin: 0;
-  color: #17324f;
+  color: #111111;
+  font-weight: 800;
 }
 
 .collab-invite-list,
@@ -296,9 +300,10 @@ const roleLabel = (role: string) => {
 
 .collab-invite-card,
 .collab-trip-card {
-  border: 1px solid rgba(82, 138, 208, 0.18);
-  border-radius: 8px;
-  background: rgba(247, 251, 255, 0.88);
+  border: 1px solid rgba(191, 214, 239, 0.76);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.12);
 }
 
 .collab-invite-card {
@@ -315,20 +320,22 @@ const roleLabel = (role: string) => {
   min-height: 210px;
   padding: 18px;
   cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .collab-trip-card:hover {
   border-color: rgba(45, 134, 231, 0.42);
-  box-shadow: 0 16px 30px rgba(82, 138, 208, 0.16);
+  transform: translateY(-4px);
+  box-shadow: 0 24px 44px rgba(77, 122, 181, 0.16);
 }
 
 .collab-trip-card__top span,
 .collab-trip-card__top strong,
 .collab-trip-card__meta span {
-  padding: 5px 9px;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #315067;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(45, 134, 231, 0.12);
+  color: #1d5d9b;
   font-size: 13px;
   font-weight: 800;
 }
@@ -340,7 +347,7 @@ const roleLabel = (role: string) => {
 }
 
 .collab-trip-card__footer {
-  color: #8a99aa;
+  color: #5f7893;
   font-size: 13px;
   font-weight: 700;
 }
@@ -348,7 +355,7 @@ const roleLabel = (role: string) => {
 .collab-trip-card__danger {
   padding: 4px 8px;
   border: 1px solid rgba(220, 38, 38, 0.28);
-  border-radius: 8px;
+  border-radius: 999px;
   background: rgba(255, 245, 245, 0.95);
   color: #b42318;
   font-size: 13px;

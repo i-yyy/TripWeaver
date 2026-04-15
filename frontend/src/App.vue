@@ -10,7 +10,7 @@
                 <span class="account-text">已登录账号：{{ authState.user?.nickname || authState.user?.email || '旅行者' }}</span>
                 <span v-if="isDeveloperUser" class="developer-badge">开发者</span>
               </div>
-              <a-button type="text" :class="navButtonClass('/')" @click="goCommunity">社区交流</a-button>
+              <a-button type="text" :class="navButtonClass('/community')" @click="goCommunity">社区交流</a-button>
               <a-button type="text" :class="navButtonClass('/planner')" @click="goPlanner">🧭 旅行规划</a-button>
               <a-button type="text" :class="navButtonClass('/tracks')" @click="goTracks">🗺️ 旅行轨迹</a-button>
               <a-button type="text" :class="navButtonClass('/collab')" @click="goCollab">🤝 协同行程</a-button>
@@ -52,14 +52,14 @@ const authState = useAuthState()
 
 const authenticated = computed(() => Boolean(authState.token && authState.user))
 const isDeveloperUser = computed(() => authState.user?.is_developer === true)
-const showAppHeader = computed(() => authenticated.value || route.path !== '/')
+const showAppHeader = computed(() => authenticated.value || !['/', '/login', '/register'].includes(route.path))
 const navButtonClass = (path: string) => ({
   'nav-btn': true,
   'nav-btn--active': path === '/' ? route.path === '/' : route.path === path || route.path.startsWith(`${path}/`),
 })
 
-const goBrandHome = () => router.push('/')
-const goCommunity = () => router.push('/')
+const goBrandHome = () => router.push(authenticated.value ? '/community' : '/')
+const goCommunity = () => router.push('/community')
 const goPlanner = () => router.push('/planner')
 const goTracks = () => router.push('/tracks')
 const goCollab = () => router.push('/collab')

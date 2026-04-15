@@ -418,7 +418,33 @@ const authenticated = computed(() => Boolean(authState.token && authState.user))
 const displayCards = computed(() => feed.value?.cards?.length ? feed.value.cards : publicCards)
 const preferenceTags = computed(() => feed.value?.preference_tags || [])
 const recentCities = computed(() => feed.value?.recent_cities || [])
-const feedSummary = computed(() => feed.value?.summary || '正在根据你的偏好整理社区路线。')
+const summaryTagLabels: Record<string, string> = {
+  citywalk: '城市漫游',
+  culture: '文化体验',
+  tea: '茶馆',
+  photo_friendly: '适合拍照',
+  slow: '慢节奏',
+  family: '亲子',
+  museum: '博物馆',
+  rainy_day: '雨天友好',
+  indoor: '室内',
+  less_walking: '少步行',
+  food: '美食',
+  night: '夜景',
+  local_flavor: '本地风味',
+  budget: '预算友好',
+  public_transit: '公共交通',
+  history: '历史',
+  nature: '自然',
+  friends: '朋友出行',
+  couple: '情侣',
+  solo: '独行',
+}
+const localizeSummary = (summary: string) =>
+  Object.entries(summaryTagLabels)
+    .reduce((text, [key, label]) => text.replace(new RegExp(`\\b${key}\\b`, 'g'), label), summary)
+    .replace(/, /g, '、')
+const feedSummary = computed(() => localizeSummary(feed.value?.summary || '正在根据你的偏好整理社区路线。'))
 const visiblePreferenceTags = computed(() => {
   if (preferenceTags.value.length) return preferenceTags.value.slice(0, 6)
   return ['citywalk', 'food', 'museum', 'slow', 'family', 'local_flavor']
@@ -919,8 +945,8 @@ onMounted(() => {
   align-content: center;
   padding: 42px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(229, 243, 255, 0.76)),
-    url("https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80") center/cover;
+    linear-gradient(135deg, rgba(255, 255, 255, 0.7), rgba(225, 243, 255, 0.28)),
+    url("https://images.unsplash.com/photo-1471922694854-ff1b63b20054?auto=format&fit=crop&w=1600&q=80") center/cover !important;
   background-blend-mode: screen;
   overflow: hidden;
 }

@@ -1,63 +1,39 @@
 <template>
-  <div class="brand-page auth-page">
-    <div class="auth-decor auth-decor--top-left">✈️</div>
-    <div class="auth-decor auth-decor--top-right">🧳</div>
-    <div class="auth-decor auth-decor--mid-left">🗺️</div>
-    <div class="auth-decor auth-decor--mid-right">📷</div>
-    <div class="auth-decor auth-decor--bottom-left">🎫</div>
-    <div class="auth-decor auth-decor--bottom-right">☁️</div>
+  <div class="auth-page">
+    <div class="auth-stage">
+      <button class="auth-back-button" type="button" aria-label="返回品牌页" @click="router.push('/')">
+        &#8249;
+      </button>
 
-    <div class="brand-shell auth-grid">
-      <section class="glass-panel auth-copy-panel">
-        <span class="page-kicker">新的故事，从这里开始</span>
-        <h1 class="page-title auth-title">创建账号，留下属于你的旅行节奏</h1>
-        <p class="page-subtitle">
-          注册后，系统会持续记录你的规划、偏好与足迹。
-        </p>
-
-        <div class="info-list auth-highlights">
-          <div class="info-item">
-            <strong>保存旅行轨迹</strong>
-            <span>搜索过的城市会自动收进你的个人地图里</span>
-          </div>
-          <div class="info-item">
-            <strong>积累偏好画像</strong>
-            <span>你喜欢的景点类型、住宿倾向和节奏都会持续沉淀</span>
-          </div>
-          <div class="info-item">
-            <strong>统一账号管理</strong>
-            <span>登录后就能在个人设置里维护昵称、邮箱和密码</span>
-          </div>
-        </div>
-      </section>
-
-      <section class="glass-panel glass-panel--soft auth-form-panel">
-        <div class="section-heading">
-          <h2>注册账号</h2>
-          <p>只需要三步，就能拥有自己的智能旅行空间</p>
+      <section class="auth-form-panel">
+        <div class="auth-form-heading">
+          <span>织途智能旅行助手</span>
+          <h2>注册</h2>
         </div>
 
-        <a-form layout="vertical" @submit.prevent="handleRegister">
-          <a-form-item label="昵称">
-            <a-input v-model:value="form.nickname" placeholder="想让大家怎么称呼你" />
-          </a-form-item>
-          <a-form-item label="邮箱">
-            <a-input v-model:value="form.email" placeholder="请输入常用邮箱" />
-          </a-form-item>
-          <a-form-item label="密码">
-            <a-input-password v-model:value="form.password" placeholder="请输入至少 6 位密码" />
-          </a-form-item>
-          <a-form-item label="确认密码">
-            <a-input-password v-model:value="confirmPassword" placeholder="请再输入一次密码" />
+        <a-form class="auth-form" layout="vertical" @submit.prevent="handleRegister">
+          <a-form-item>
+            <a-input v-model:value="form.nickname" placeholder="请输入昵称" />
           </a-form-item>
           <a-form-item>
-            <a-button type="primary" block size="large" :loading="loading" @click="handleRegister">注册</a-button>
+            <a-input v-model:value="form.email" placeholder="请输入邮箱" />
+          </a-form-item>
+          <a-form-item>
+            <a-input-password v-model:value="form.password" placeholder="请输入密码" />
+          </a-form-item>
+          <a-form-item>
+            <a-input-password v-model:value="confirmPassword" placeholder="请再次输入密码" />
+          </a-form-item>
+          <a-form-item class="auth-submit">
+            <a-button type="primary" :loading="loading" @click="handleRegister">注册</a-button>
           </a-form-item>
         </a-form>
 
         <div class="auth-switch-row">
-          <span>已经有账号了？</span>
-          <a-button type="link" @click="router.push('/login')">去登录</a-button>
+          <a-button type="link" @click="router.push('/login')">
+            <span>已经有账号了？</span>
+            <span class="auth-link-strong">去登录</span>
+          </a-button>
         </div>
       </section>
     </div>
@@ -112,123 +88,227 @@ const handleRegister = async () => {
 
 <style scoped>
 .auth-page {
-  display: flex;
-  align-items: center;
-}
-
-.auth-decor {
-  position: absolute;
+  min-height: 100vh;
   display: grid;
   place-items: center;
-  width: 68px;
-  height: 68px;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.38);
-  border: 1px solid rgba(255, 255, 255, 0.52);
-  box-shadow: 0 18px 34px rgba(76, 116, 170, 0.1);
-  backdrop-filter: blur(10px);
-  font-size: 28px;
-  animation: float-soft 5.4s ease-in-out infinite;
+  padding: 18px 30px;
+  background: #eef1f5;
+}
+
+.auth-stage {
+  position: relative;
+  width: min(1360px, calc(100vw - 60px));
+  height: min(680px, calc(100vh - 36px));
+  min-height: 560px;
+  display: grid;
+  grid-template-columns: 430px minmax(0, 1fr);
+  align-items: stretch;
+  overflow: hidden;
+  border-radius: 24px;
+  background: url('@/assets/auth-trip-bg.jpg') center center / cover no-repeat;
+  box-shadow: none;
+}
+
+.auth-brand-copy {
+  display: none;
+}
+
+.auth-form-heading span {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.auth-form-panel {
+  position: relative;
+  z-index: 1;
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 58px 76px 56px 88px;
+  background: #ffffff;
+}
+
+.auth-form-panel::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -214px;
+  width: 280px;
+  background: #ffffff;
+  clip-path: path('M 0 0 H 258 C 194 46 136 86 146 154 C 156 222 244 232 218 304 C 188 386 72 372 74 456 C 76 530 190 542 166 614 C 158 640 144 662 138 680 H 0 Z');
   pointer-events: none;
 }
 
-.auth-decor--top-left {
-  top: 40px;
-  left: clamp(22px, 5vw, 72px);
+.auth-back-button {
+  position: absolute;
+  top: 18px;
+  left: 22px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #53647a;
+  font-size: 38px;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.2s ease;
 }
 
-.auth-decor--top-right {
-  top: 58px;
-  right: clamp(18px, 5vw, 64px);
-  animation-delay: 0.5s;
+.auth-back-button:hover {
+  color: #2f7edb;
+  transform: translateX(-2px);
 }
 
-.auth-decor--mid-left {
-  top: 38%;
-  left: clamp(8px, 3vw, 30px);
-  animation-delay: 1.1s;
+.auth-form-heading,
+.auth-form-panel :deep(.ant-form),
+.auth-switch-row {
+  position: relative;
+  z-index: 1;
 }
 
-.auth-decor--mid-right {
-  top: 42%;
-  right: clamp(10px, 3vw, 34px);
-  animation-delay: 1.6s;
+.auth-form-heading span {
+  color: #5f6b7a;
 }
 
-.auth-decor--bottom-left {
-  bottom: 56px;
-  left: clamp(28px, 7vw, 118px);
-  animation-delay: 0.8s;
-}
-
-.auth-decor--bottom-right {
-  bottom: 42px;
-  right: clamp(36px, 8vw, 132px);
-  animation-delay: 1.9s;
-}
-
-.auth-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  width: min(1160px, 100%);
-  gap: 22px;
-  align-items: stretch;
-}
-
-.auth-copy-panel,
-.auth-form-panel {
-  display: flex;
-  flex-direction: column;
-  min-height: 620px;
-  padding: 34px;
-}
-
-.auth-title {
-  max-width: 620px;
-  font-size: clamp(30px, 3.8vw, 50px);
+.auth-form-heading h2 {
+  margin: 60px 0 34px;
+  color: #172033;
+  font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  font-size: 34px;
   font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: 0;
 }
 
-.auth-highlights {
-  margin-top: 28px;
+.auth-form-panel :deep(.ant-form) {
+  width: 292px;
 }
 
-.auth-form-panel {
-  align-self: stretch;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.auth-form-panel :deep(.ant-form-item) {
+  margin-bottom: 18px;
+}
+
+.auth-form-panel :deep(.ant-input),
+.auth-form-panel :deep(.ant-input-affix-wrapper) {
+  width: 100%;
+  height: 52px;
+  min-height: 52px;
+  border: none !important;
+  border-radius: 999px;
+  background: #e5e8ed !important;
+  background-color: #e5e8ed !important;
+  box-sizing: border-box;
+  box-shadow: none !important;
+  color: #27313f;
+  overflow: hidden;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.auth-form-panel :deep(.ant-input-affix-wrapper .ant-input) {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  background: transparent !important;
+  background-color: transparent !important;
+  border-radius: 999px;
+  box-sizing: border-box;
+  box-shadow: none !important;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.auth-form-panel :deep(.ant-input:hover),
+.auth-form-panel :deep(.ant-input:focus),
+.auth-form-panel :deep(.ant-input-affix-wrapper:hover),
+.auth-form-panel :deep(.ant-input-affix-wrapper-focused) {
+  border: none !important;
+  background: #dce1e7 !important;
+  background-color: #dce1e7 !important;
+  box-shadow: none !important;
+}
+
+.auth-form-panel :deep(.ant-btn) {
+  height: 38px;
+  border-radius: 18px;
+  font-weight: 700;
+}
+
+.auth-submit {
+  margin-top: 6px;
+}
+
+.auth-submit :deep(.ant-btn) {
+  width: 146px;
+  min-width: 146px;
+  background: #2f7edb;
+  box-shadow: 0 6px 12px rgba(47, 126, 219, 0.22);
 }
 
 .auth-switch-row {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 6px;
-  margin-top: 10px;
-  color: var(--brand-muted);
+  margin-top: 18px;
+  color: #53647a;
+}
+
+.auth-switch-row :deep(.ant-btn) {
+  padding: 0;
+  color: #53647a;
+  font-weight: 600;
+}
+
+.auth-switch-row :deep(.ant-btn span:first-child) {
+  color: #53647a;
+}
+
+.auth-switch-row :deep(.ant-btn span + span) {
+  margin-left: 4px;
+}
+
+.auth-link-strong {
+  color: #2f7edb;
+  font-weight: 700;
 }
 
 @media (max-width: 960px) {
-  .auth-grid {
+  .auth-page {
+    padding: 0;
+  }
+
+  .auth-stage {
     grid-template-columns: 1fr;
+    width: 100%;
+    height: auto;
+    min-height: 100vh;
+    border-radius: 0;
   }
 
-  .auth-copy-panel,
   .auth-form-panel {
-    min-height: auto;
-    padding: 24px;
+    width: min(430px, 100%);
+    min-height: 100vh;
+    padding: 40px 28px;
+    border-radius: 0;
   }
 
-  .auth-decor {
-    width: 54px;
-    height: 54px;
-    border-radius: 18px;
-    font-size: 22px;
+  .auth-form-panel::before {
+    display: none;
   }
 
-  .auth-decor--mid-left,
-  .auth-decor--mid-right {
+  .auth-brand-copy {
     display: none;
   }
 }

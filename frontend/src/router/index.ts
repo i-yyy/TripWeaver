@@ -17,9 +17,9 @@ import { isAuthenticated, useAuthState } from '@/utils/auth'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'Community', component: Community },
-    { path: '/community/cards/:cardId', name: 'CommunityCardDetail', component: CommunityCardDetail },
-    { path: '/landing', name: 'Landing', component: Landing },
+    { path: '/', name: 'Landing', component: Landing },
+    { path: '/community', name: 'Community', component: Community, meta: { requiresAuth: true } },
+    { path: '/community/cards/:cardId', name: 'CommunityCardDetail', component: CommunityCardDetail, meta: { requiresAuth: true } },
     { path: '/login', name: 'Login', component: Login, meta: { publicOnly: true } },
     { path: '/register', name: 'Register', component: Register, meta: { publicOnly: true } },
     { path: '/planner', name: 'Planner', component: Home, meta: { requiresAuth: true } },
@@ -35,14 +35,17 @@ const router = createRouter({
 router.beforeEach((to) => {
   const authed = isAuthenticated()
   const authState = useAuthState()
+  if (to.path === '/' && authed) {
+    return '/community'
+  }
   if (to.meta.requiresAuth && !authed) {
     return '/login'
   }
   if (to.meta.requiresDeveloper && authState.user?.is_developer === false) {
     return '/planner'
   }
-  if (to.meta.publicOnly && authed && to.path !== '/') {
-    return '/'
+  if (to.meta.publicOnly && authed) {
+    return '/community'
   }
   return true
 })

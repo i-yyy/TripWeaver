@@ -548,6 +548,173 @@ select {
   animation-delay: 0.24s;
 }
 
+/* Borderless component system: use colored surfaces and shadow for separation. */
+:where(
+  .glass-panel,
+  .brand-stat,
+  .community-hero__copy,
+  .community-hero__panel,
+  .community-profile-card,
+  .community-main,
+  .community-side-panel,
+  .trip-share-card,
+  .moments-composer,
+  .moment-card,
+  .moment-linked-plan,
+  .community-detail-card,
+  .community-detail-plan,
+  .community-detail-comments,
+  .collab-hero,
+  .collab-panel,
+  .collab-invite-card,
+  .collab-trip-card,
+  .collab-detail-hero,
+  .collab-plan-panel,
+  .collab-side-panel section,
+  .collab-day-card,
+  .collab-attraction-row,
+  .collab-hotel-card,
+  .collab-info-card,
+  .collab-meal-card,
+  .collab-advice-card,
+  .collab-stat-card,
+  .collab-user-row,
+  .collab-comment,
+  .collab-change,
+  .profile-cover,
+  .profile-stat-tile,
+  .profile-main-column,
+  .profile-side-column,
+  .profile-post-card,
+  .profile-user-row,
+  .profile-edit-panel section,
+  .profile-avatar-editor,
+  .tracks-hero-panel,
+  .tracks-list-panel,
+  .tracks-map-panel,
+  .track-item,
+  .map-canvas,
+  .map-placeholder
+) {
+  border: none !important;
+}
+
+:where(
+  .glass-panel,
+  .community-main,
+  .community-side-panel,
+  .collab-panel,
+  .collab-plan-panel,
+  .collab-side-panel section,
+  .profile-main-column,
+  .profile-side-column,
+  .tracks-list-panel,
+  .tracks-map-panel
+) {
+  background: rgba(255, 255, 255, 0.76) !important;
+  box-shadow: 0 24px 60px rgba(65, 110, 168, 0.14) !important;
+}
+
+:where(
+  .community-hero__copy,
+  .collab-hero,
+  .collab-detail-hero,
+  .profile-cover,
+  .tracks-hero-panel
+) {
+  background: #eaf5ff !important;
+  box-shadow: 0 24px 60px rgba(65, 110, 168, 0.14) !important;
+}
+
+:where(
+  .trip-share-card,
+  .moment-card,
+  .collab-trip-card,
+  .profile-post-card,
+  .track-item
+) {
+  background: #ffffff !important;
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.12) !important;
+}
+
+:where(
+  .community-profile-card,
+  .collab-stat-card,
+  .collab-info-card,
+  .collab-hotel-card,
+  .collab-meal-card,
+  .profile-avatar-editor,
+  .map-placeholder,
+  .track-item--active
+) {
+  background: #eff6ff !important;
+}
+
+:where(
+  .collab-advice-card,
+  .collab-attraction-row,
+  .collab-user-row,
+  .collab-comment,
+  .collab-change,
+  .profile-user-row,
+  .profile-edit-panel section,
+  .moment-linked-plan,
+  .community-detail-plan
+) {
+  background: #f8fbff !important;
+}
+
+:where(
+  .profile-danger-zone,
+  .collab-trip-card__danger
+) {
+  border: none !important;
+  background: #fff1f2 !important;
+}
+
+:where(
+  .ant-card,
+  .ant-modal-content,
+  .ant-modal-header,
+  .ant-popover-inner,
+  .ant-dropdown-menu,
+  .ant-table-wrapper .ant-table-container,
+  .ant-collapse > .ant-collapse-item,
+  .ant-message .ant-message-notice-content,
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-picker,
+  .ant-select-selector,
+  .ant-textarea,
+  textarea.ant-input
+) {
+  border: none !important;
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-picker,
+.ant-select-selector,
+textarea.ant-input {
+  background: #f2f7ff !important;
+}
+
+.ant-table-wrapper .ant-table-container,
+.ant-collapse > .ant-collapse-item,
+.ant-modal-content,
+.ant-popover-inner {
+  background: rgba(255, 255, 255, 0.86) !important;
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.12) !important;
+}
+
+.ant-table-wrapper .ant-table-thead > tr > th,
+.ant-table-wrapper .ant-table-tbody > tr > td,
+.ant-collapse-content {
+  border: none !important;
+}
+
 @keyframes panel-rise {
   from {
     opacity: 0;
