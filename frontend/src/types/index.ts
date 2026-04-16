@@ -49,6 +49,36 @@ export interface Budget {
   total: number
 }
 
+export interface DecisionScoreFactor {
+  label: string
+  impact: number
+  reason: string
+  value?: string
+}
+
+export interface DecisionScoreDimension {
+  key: 'preference_fit' | 'budget_fit' | 'route_efficiency' | 'comfort' | 'resilience' | 'richness' | string
+  label: string
+  description: string
+  score: number
+  detail: string
+  narrative?: string
+  factors?: DecisionScoreFactor[]
+}
+
+export interface DecisionScoreSnapshot {
+  overall: number
+  dimensions: DecisionScoreDimension[]
+  summary: string
+  story?: string
+  highlights: string[]
+  risks: string[]
+  budget: Budget
+  estimated_distance_km: number
+  estimated_distance_text: string
+  comfort_text: string
+}
+
 export interface RecommendationReason {
   source_type: 'knowledge_base' | 'profile' | 'memory' | string
   title: string
@@ -158,6 +188,7 @@ export interface TripPlan {
   weather_info: WeatherInfo[]
   overall_suggestions: string
   budget?: Budget
+  decision_score?: DecisionScoreSnapshot | null
   recommendation_reasons?: RecommendationReason[]
   applied_skills?: AppliedSkill[]
 }
@@ -184,6 +215,27 @@ export interface TripPlanResponse {
   success: boolean
   message: string
   data?: TripPlan
+}
+
+export interface TripScoreSummary {
+  budget_level?: string | null
+  travel_style: string[]
+  companions: string[]
+  dietary_restrictions: string[]
+  mobility_needs: string[]
+  transportation: string
+  free_text_input: string
+}
+
+export interface TripScorePayload {
+  plan: TripPlan
+  summary?: TripScoreSummary | null
+}
+
+export interface TripScoreResponse {
+  success: boolean
+  message: string
+  data?: DecisionScoreSnapshot | null
 }
 
 export interface FeedbackPayload {

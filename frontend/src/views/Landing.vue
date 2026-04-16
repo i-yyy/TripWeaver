@@ -86,7 +86,6 @@ import { useAuthState } from '@/utils/auth'
 const router = useRouter()
 const authState = useAuthState()
 const authenticated = computed(() => Boolean(authState.token && authState.user))
-
 const goLogin = () => router.push('/login')
 const goRegister = () => router.push('/register')
 const goCommunity = () => router.push('/community')

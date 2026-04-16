@@ -30,6 +30,8 @@ import type {
   TravelTrackPlanResponse,
   TripFormData,
   TripPlanResponse,
+  TripScorePayload,
+  TripScoreResponse,
   UpdateProfilePayload,
   UserProfileResponse,
 } from '@/types'
@@ -153,6 +155,15 @@ export async function generateTripPlan(formData: TripFormData): Promise<TripPlan
     return response.data
   } catch (error: any) {
     throw new Error(error.response?.data?.detail || error.message || '行程生成失败')
+  }
+}
+
+export async function evaluateTripDecisionScore(payload: TripScorePayload): Promise<TripScoreResponse> {
+  try {
+    const response = await apiClient.post<TripScoreResponse>('/api/trip/score', payload)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '评分计算失败')
   }
 }
 
