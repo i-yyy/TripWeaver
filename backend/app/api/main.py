@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -14,6 +15,26 @@ from ..db.database import init_db
 from .routes import auth, collab, community, feedback, kb, map as map_routes, poi, tracks, trip, user
 
 settings = get_settings()
+
+
+class _UvicornAccessNoiseFilter(logging.Filter):
+    """Drop very noisy local health/root probes from uvicorn access logs."""
+
+    _ignored_fragments = (
+        '"GET / HTTP/',
+        '"GET /health HTTP/',
+    )
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        return not any(fragment in message for fragment in self._ignored_fragments)
+
+
+def _install_access_log_filter() -> None:
+    access_logger = logging.getLogger("uvicorn.access")
+    if any(isinstance(item, _UvicornAccessNoiseFilter) for item in access_logger.filters):
+        return
+    access_logger.addFilter(_UvicornAccessNoiseFilter())
 
 app = FastAPI(
     title=settings.app_name,
@@ -93,6 +114,7 @@ async def startup_event() -> None:
     print(f"Starting {settings.app_name} v{settings.app_version}")
     print("=" * 60)
 
+    _install_access_log_filter()
     print_config()
     validate_config()
     init_db()

@@ -1,4 +1,4 @@
-﻿"""LLM-backed planning agent that turns structured context into a TripPlan."""
+"""LLM-backed planning agent that turns structured context into a TripPlan."""
 
 from __future__ import annotations
 
@@ -65,7 +65,7 @@ class PlanningAgent:
         meal_started_at = perf_counter()
         meal_candidates_by_day, meal_source = self._resolve_meal_candidates(payload)
         logger.info(
-            "鈴憋笍 PlanningAgent meal candidates prepared city=%s elapsed=%.2fs days=%s source=%s",
+            "[timing] PlanningAgent meal candidates prepared city=%s elapsed=%.2fs days=%s source=%s",
             payload.request.city,
             perf_counter() - meal_started_at,
             len(meal_candidates_by_day),
@@ -75,7 +75,7 @@ class PlanningAgent:
         prompt_started_at = perf_counter()
         prompt = self._build_prompt(payload, meal_candidates_by_day)
         logger.info(
-            "鈴憋笍 PlanningAgent prompt built city=%s elapsed=%.2fs prompt_chars=%s",
+            "[timing] PlanningAgent prompt built city=%s elapsed=%.2fs prompt_chars=%s",
             payload.request.city,
             perf_counter() - prompt_started_at,
             len(prompt),
@@ -84,7 +84,7 @@ class PlanningAgent:
             llm_started_at = perf_counter()
             raw_response = await asyncio.to_thread(self.planner_runner.run, prompt)
             logger.info(
-                "鈴憋笍 PlanningAgent llm completed city=%s elapsed=%.2fs response_chars=%s",
+                "[timing] PlanningAgent llm completed city=%s elapsed=%.2fs response_chars=%s",
                 payload.request.city,
                 perf_counter() - llm_started_at,
                 len(str(raw_response or "")),
@@ -93,7 +93,7 @@ class PlanningAgent:
             parse_started_at = perf_counter()
             trip_plan = self._parse_response(raw_response, payload, meal_candidates_by_day)
             logger.info(
-                "鈴憋笍 PlanningAgent parse completed city=%s elapsed=%.2fs days=%s",
+                "[timing] PlanningAgent parse completed city=%s elapsed=%.2fs days=%s",
                 payload.request.city,
                 perf_counter() - parse_started_at,
                 len(trip_plan.days),
@@ -102,7 +102,7 @@ class PlanningAgent:
             enrich_started_at = perf_counter()
             trip_plan = await self._safe_enrich_plan(trip_plan, payload)
             logger.info(
-                "鈴憋笍 PlanningAgent enrich completed city=%s elapsed=%.2fs days=%s",
+                "[timing] PlanningAgent enrich completed city=%s elapsed=%.2fs days=%s",
                 payload.request.city,
                 perf_counter() - enrich_started_at,
                 len(trip_plan.days),
@@ -111,7 +111,7 @@ class PlanningAgent:
             validate_started_at = perf_counter()
             trip_plan, validation = await self._validate_plan(trip_plan, payload)
             logger.info(
-                "鈴憋笍 PlanningAgent validate completed city=%s elapsed=%.2fs warnings=%s errors=%s",
+                "[timing] PlanningAgent validate completed city=%s elapsed=%.2fs warnings=%s errors=%s",
                 payload.request.city,
                 perf_counter() - validate_started_at,
                 len(validation.warnings),
@@ -119,7 +119,7 @@ class PlanningAgent:
             )
             warnings = self._validation_messages(validation)
             logger.info(
-                "鈴憋笍 PlanningAgent finished city=%s total_elapsed=%.2fs degraded=%s",
+                "[timing] PlanningAgent finished city=%s total_elapsed=%.2fs degraded=%s",
                 payload.request.city,
                 perf_counter() - started_at,
                 bool(warnings),
@@ -140,7 +140,7 @@ class PlanningAgent:
             fallback_started_at = perf_counter()
             trip_plan = self.build_fallback_plan(payload, meal_candidates_by_day)
             logger.info(
-                "鈴憋笍 PlanningAgent fallback built city=%s elapsed=%.2fs days=%s",
+                "[timing] PlanningAgent fallback built city=%s elapsed=%.2fs days=%s",
                 payload.request.city,
                 perf_counter() - fallback_started_at,
                 len(trip_plan.days),
@@ -148,14 +148,14 @@ class PlanningAgent:
             enrich_started_at = perf_counter()
             trip_plan = await self._safe_enrich_plan(trip_plan, payload)
             logger.info(
-                "鈴憋笍 PlanningAgent fallback enrich completed city=%s elapsed=%.2fs",
+                "[timing] PlanningAgent fallback enrich completed city=%s elapsed=%.2fs",
                 payload.request.city,
                 perf_counter() - enrich_started_at,
             )
             validate_started_at = perf_counter()
             trip_plan, validation = await self._validate_plan(trip_plan, payload)
             logger.info(
-                "鈴憋笍 PlanningAgent fallback validate completed city=%s elapsed=%.2fs warnings=%s errors=%s",
+                "[timing] PlanningAgent fallback validate completed city=%s elapsed=%.2fs warnings=%s errors=%s",
                 payload.request.city,
                 perf_counter() - validate_started_at,
                 len(validation.warnings),
@@ -163,7 +163,7 @@ class PlanningAgent:
             )
             validation_messages = self._validation_messages(validation)
             logger.info(
-                "鈴憋笍 PlanningAgent finished city=%s total_elapsed=%.2fs degraded=%s fallback=true",
+                "[timing] PlanningAgent finished city=%s total_elapsed=%.2fs degraded=%s fallback=true",
                 payload.request.city,
                 perf_counter() - started_at,
                 True,
@@ -1414,7 +1414,7 @@ class PlanningAgent:
 
         budget = self._build_budget(enriched_days)
         logger.info(
-            "鈴憋笍 PlanningAgent enrich stats city=%s days=%s media_attempts=%s media_elapsed=%.2fs route_attempts=%s route_elapsed=%.2fs",
+            "[timing] PlanningAgent enrich stats city=%s days=%s media_attempts=%s media_elapsed=%.2fs route_attempts=%s route_elapsed=%.2fs",
             trip_plan.city,
             len(trip_plan.days),
             media_attempts,
@@ -1558,8 +1558,3 @@ class PlanningAgent:
             if numbers:
                 return float(numbers[0])
         return default
-
-
-
-
-

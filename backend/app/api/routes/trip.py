@@ -54,7 +54,7 @@ async def plan_trip(
         profile_service.update_profile_from_request(request)
         memory_service.save_session_facts(request)
         logger.info(
-            "鈴憋笍 Trip API profile/session prepared city=%s elapsed=%.2fs",
+            "[timing] Trip API profile/session prepared city=%s elapsed=%.2fs",
             request.city,
             perf_counter() - profile_started_at,
         )
@@ -72,7 +72,7 @@ async def plan_trip(
             city=request.city,
         )
         logger.info(
-            "鈴憋笍 Trip API memory context prepared city=%s elapsed=%.2fs memories=%s",
+            "[timing] Trip API memory context prepared city=%s elapsed=%.2fs memories=%s",
             request.city,
             perf_counter() - memory_started_at,
             len(memories),
@@ -92,7 +92,7 @@ async def plan_trip(
             for reason in rag_bundle.get("recommendation_reasons", [])
         ]
         logger.info(
-            "鈴憋笍 Trip API rag prepared city=%s elapsed=%.2fs recall=%s rerank=%s reasons=%s",
+            "[timing] Trip API rag prepared city=%s elapsed=%.2fs recall=%s rerank=%s reasons=%s",
             request.city,
             perf_counter() - rag_started_at,
             rag_bundle.get("recall_count", 0),
@@ -108,7 +108,7 @@ async def plan_trip(
             rag_context=rag_context,
         )
         logger.info(
-            "鈴憋笍 Trip API skills prepared city=%s elapsed=%.2fs skills=%s",
+            "[timing] Trip API skills prepared city=%s elapsed=%.2fs skills=%s",
             request.city,
             perf_counter() - skill_started_at,
             len(static_skills),
@@ -126,7 +126,7 @@ async def plan_trip(
         trip_plan.recommendation_reasons = recommendation_reasons
         trip_plan.decision_score = get_plan_score_service().evaluate_trip_plan(trip_plan, request)
         logger.info(
-            "鈴憋笍 Trip API planner completed city=%s elapsed=%.2fs days=%s",
+            "[timing] Trip API planner completed city=%s elapsed=%.2fs days=%s",
             request.city,
             perf_counter() - planner_started_at,
             len(trip_plan.days),
@@ -135,7 +135,7 @@ async def plan_trip(
         save_started_at = perf_counter()
         memory_service.save_trip_summary(request, trip_plan)
         logger.info(
-            "鈴憋笍 Trip API summary saved city=%s elapsed=%.2fs total_elapsed=%.2fs",
+            "[timing] Trip API summary saved city=%s elapsed=%.2fs total_elapsed=%.2fs",
             request.city,
             perf_counter() - save_started_at,
             perf_counter() - started_at,
