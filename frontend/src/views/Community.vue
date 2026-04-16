@@ -240,9 +240,15 @@
 
           <div class="moments-feed">
             <a-empty v-if="!posts.length && !postLoading" description="还没有社区动态，发第一条吧" />
-            <article v-for="post in posts" :key="post.id" class="moment-card">
+            <article
+              v-for="post in posts"
+              :id="`post-${post.id}`"
+              :key="post.id"
+              class="moment-card"
+              :class="{ 'moment-card--focused': focusedPostId === post.id }"
+            >
               <div class="moment-card__head">
-                <div class="moment-card__author">
+                <button class="moment-card__author moment-card__author-button" type="button" @click="openAuthorProfile(post.user_id)">
                   <img
                     v-if="post.author_avatar_url"
                     class="moment-card__avatar-image"
@@ -255,7 +261,7 @@
                     <strong>{{ post.author_name }}</strong>
                     <p>{{ formatTime(post.created_at) }}<span v-if="post.city"> · {{ post.city }}</span></p>
                   </div>
-                </div>
+                </button>
                 <a-button
                   v-if="authenticated && authState.user?.id !== post.user_id"
                   size="small"
@@ -363,8 +369,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 
 import {
@@ -388,6 +394,7 @@ import { useAuthState } from '@/utils/auth'
 import { avatarStyle, avatarText } from '@/utils/avatar'
 import { saveCommunityCards, saveSelectedCommunityCard } from '@/utils/communityCards'
 
+const route = useRoute()
 const router = useRouter()
 const authState = useAuthState()
 const loading = ref(false)
@@ -398,6 +405,7 @@ const uploadingImages = ref(false)
 const showPostComposer = ref(false)
 const feed = ref<CommunityFeedData | null>(null)
 const posts = ref<CommunityPost[]>([])
+const focusedPostId = ref('')
 const availableTracks = ref<TravelTrackItem[]>([])
 const commentDrafts = ref<Record<string, string>>({})
 const submittingCommentId = ref('')
@@ -587,6 +595,15 @@ const loadFeed = async (forceRefresh = false) => {
   }
 }
 
+const scrollToPostFromQuery = async () => {
+  const postId = String(route.query.postId || '')
+  if (!postId) return
+  focusedPostId.value = postId
+  await nextTick()
+  const target = document.getElementById(`post-${postId}`)
+  target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
 const loadPosts = async () => {
   if (!authenticated.value) {
     posts.value = []
@@ -594,11 +611,12 @@ const loadPosts = async () => {
   }
   postLoading.value = true
   try {
-    const response = await getCommunityPosts(20)
+    const response = await getCommunityPosts(50)
     if (!response.success) {
       throw new Error(response.message || '获取社区动态失败')
     }
     posts.value = response.data
+    await scrollToPostFromQuery()
   } catch (error: any) {
     message.warning(error.message || '获取社区动态失败')
   } finally {
@@ -641,6 +659,15 @@ const goLogin = () => router.push('/login')
 const openCardDetail = (card: CommunityTripCard) => {
   saveSelectedCommunityCard(card)
   router.push({ name: 'CommunityCardDetail', params: { cardId: card.id } })
+}
+
+const openAuthorProfile = (userId: string) => {
+  if (!userId) return
+  if (userId === authState.user?.id) {
+    router.push({ name: 'Profile' })
+    return
+  }
+  router.push({ name: 'UserProfile', params: { userId } })
 }
 
 const requireLogin = () => {
@@ -902,6 +929,10 @@ const formatCommentTime = (value: string) => new Date(value).toLocaleString('zh-
 watch(displayCards, (cards) => {
   saveCommunityCards(cards)
 }, { immediate: true, deep: true })
+
+watch(() => route.query.postId, () => {
+  void scrollToPostFromQuery()
+})
 
 onMounted(() => {
   void loadFeed()
@@ -1384,6 +1415,11 @@ onMounted(() => {
   padding: 20px;
 }
 
+.moment-card--focused {
+  outline: 3px solid rgba(45, 134, 231, 0.34);
+  box-shadow: 0 26px 52px rgba(45, 134, 231, 0.2);
+}
+
 .moment-card__head {
   align-items: center;
   justify-content: space-between;
@@ -1393,6 +1429,20 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.moment-card__author-button {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.moment-card__author-button:hover strong {
+  color: var(--brand-primary);
 }
 
 .moment-card__avatar {

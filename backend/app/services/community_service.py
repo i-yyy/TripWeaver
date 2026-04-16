@@ -613,7 +613,7 @@ class CommunityService:
             return CommunityUserSummary(
                 id=user.id,
                 nickname=user.nickname or "旅行者",
-                email=user.email or "",
+                email=(user.email or "") if viewer_user_id == user.id else "",
                 avatar_url=user.avatar_url or "",
                 gender=user.gender or "",
                 followed_by_me=user.id in viewer_followed_user_ids,

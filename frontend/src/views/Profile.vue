@@ -3,23 +3,26 @@
     <div class="brand-shell profile-home">
       <section class="profile-cover">
         <div class="profile-cover__identity">
-          <img v-if="resolvedAvatarUrl" class="profile-cover__avatar" :src="resolvedAvatarUrl" alt="当前头像" />
+          <img v-if="resolvedAvatarUrl" class="profile-cover__avatar" :src="resolvedAvatarUrl" :alt="`${displayNickname} 的头像`" />
           <div v-else class="profile-cover__avatar profile-avatar-fallback" :style="avatarStyle(profileForm.nickname)">
             {{ avatarText(profileForm.nickname) }}
           </div>
           <div class="profile-cover__copy">
-            <span class="page-kicker">个人主页</span>
-            <h1>{{ profileForm.nickname || '未设置昵称' }}</h1>
-            <p>{{ profileForm.email || '未设置邮箱' }}</p>
+            <span class="page-kicker">{{ isOwnProfile ? '个人主页' : '作者主页' }}</span>
+            <h1>{{ displayNickname }}</h1>
+            <p>{{ isOwnProfile ? (profileForm.email || '未设置邮箱') : 'TA 的旅行动态和社区关系' }}</p>
             <div class="profile-cover__badges">
-              <span>{{ genderLabel(profileForm.gender) }}</span>
-              <span>{{ authState.user?.is_active ? '账号正常' : '待确认' }}</span>
-              <span v-if="authState.user?.created_at">加入于 {{ formatDate(authState.user.created_at) }}</span>
+              <span>{{ genderLabel(displayGender) }}</span>
+              <span v-if="isOwnProfile">{{ authState.user?.is_active ? '账号正常' : '待确认' }}</span>
+              <span v-if="isOwnProfile && authState.user?.created_at">加入于 {{ formatDate(authState.user.created_at) }}</span>
             </div>
           </div>
         </div>
 
-        <button class="profile-edit-entry" type="button" @click="showEditModal = true">编辑账号信息</button>
+        <button v-if="isOwnProfile" class="profile-edit-entry" type="button" @click="showEditModal = true">编辑账号信息</button>
+        <button v-else class="profile-edit-entry" type="button" :disabled="followLoading" @click="toggleProfileFollow">
+          {{ profileHome?.user.followed_by_me ? '已关注' : '+ 关注' }}
+        </button>
       </section>
 
       <section class="profile-stats-row" :aria-busy="homeLoading">
@@ -41,16 +44,24 @@
         <div class="profile-main-column">
           <div class="profile-section-head">
             <div>
-              <h2>我的旅行动态</h2>
-              <p>以第一张图片和正文摘要展示，适合快速回看自己的分享。</p>
+              <h2>{{ isOwnProfile ? '我的旅行动态' : 'TA 的旅行动态' }}</h2>
+              <p>点击动态卡片，可以回到社区里查看完整帖子、评论和点赞。</p>
             </div>
             <a-button :loading="homeLoading" @click="loadProfileHome">刷新主页</a-button>
           </div>
 
           <a-spin :spinning="homeLoading">
-            <a-empty v-if="!profilePosts.length" description="你还没有发布旅行动态" />
+            <a-empty v-if="!profilePosts.length" :description="isOwnProfile ? '你还没有发布旅行动态' : 'TA 还没有发布旅行动态'" />
             <div v-else class="profile-post-grid">
-              <article v-for="post in profilePosts" :key="post.id" class="profile-post-card">
+              <article
+                v-for="post in profilePosts"
+                :key="post.id"
+                class="profile-post-card"
+                role="button"
+                tabindex="0"
+                @click="openProfilePost(post.id)"
+                @keydown.enter="openProfilePost(post.id)"
+              >
                 <div class="profile-post-card__image">
                   <img v-if="post.image_urls.length" :src="resolveMediaUrl(post.image_urls[0])" :alt="`${post.author_name} 的旅行动态图片`" />
                   <div v-else class="profile-post-card__placeholder">{{ post.city || '旅行动态' }}</div>
@@ -85,7 +96,7 @@
           <a-tabs v-model:activeKey="activeRelationTab">
             <a-tab-pane key="followers" tab="关注我的人">
               <div v-if="followers.length" class="profile-user-list">
-                <article v-for="user in followers" :key="`follower-${user.id}`" class="profile-user-row">
+                <article v-for="user in followers" :key="`follower-${user.id}`" class="profile-user-row" role="button" tabindex="0" @click="openUserProfile(user.id)" @keydown.enter="openUserProfile(user.id)">
                   <img v-if="user.avatar_url" :src="resolveMediaUrl(user.avatar_url)" :alt="`${user.nickname} 的头像`" />
                   <div v-else class="profile-user-row__avatar" :style="avatarStyle(user.nickname)">{{ avatarText(user.nickname) }}</div>
                   <div>
@@ -98,7 +109,7 @@
             </a-tab-pane>
             <a-tab-pane key="following" tab="我关注的人">
               <div v-if="following.length" class="profile-user-list">
-                <article v-for="user in following" :key="`following-${user.id}`" class="profile-user-row">
+                <article v-for="user in following" :key="`following-${user.id}`" class="profile-user-row" role="button" tabindex="0" @click="openUserProfile(user.id)" @keydown.enter="openUserProfile(user.id)">
                   <img v-if="user.avatar_url" :src="resolveMediaUrl(user.avatar_url)" :alt="`${user.nickname} 的头像`" />
                   <div v-else class="profile-user-row__avatar" :style="avatarStyle(user.nickname)">{{ avatarText(user.nickname) }}</div>
                   <div>
@@ -114,6 +125,7 @@
       </section>
 
       <a-modal
+        v-if="isOwnProfile"
         v-model:open="showEditModal"
         title="编辑账号信息"
         width="760px"
@@ -136,9 +148,12 @@
                       class="profile-avatar-input"
                       type="file"
                       accept="image/*"
+                      hidden
+                      tabindex="-1"
+                      aria-label="选择头像图片"
                       @change="handleAvatarFile"
                     />
-                    <a-button :loading="avatarLoading" @click="openAvatarPicker">选择头像图片</a-button>
+                    <a-button :loading="avatarLoading" @click="openAvatarPicker">添加头像</a-button>
                   </div>
                 </div>
               </a-form-item>
@@ -206,16 +221,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 
 import {
   changeAccountPassword,
   deleteCurrentAccount,
+  getCommunityProfile,
   getCurrentUser,
   getMyCommunityProfile,
   resolveMediaUrl,
+  toggleCommunityAuthorFollow,
   updateAccountProfile,
   uploadAccountAvatar,
 } from '@/services/api'
@@ -223,6 +240,7 @@ import type { CommunityPost, CommunityProfileHomeData, CommunityUserSummary } fr
 import { clearAuthSession, updateStoredUser, useAuthState } from '@/utils/auth'
 import { avatarStyle, avatarText } from '@/utils/avatar'
 
+const route = useRoute()
 const router = useRouter()
 const authState = useAuthState()
 const profileLoading = ref(false)
@@ -230,6 +248,7 @@ const avatarLoading = ref(false)
 const passwordLoading = ref(false)
 const deleteLoading = ref(false)
 const homeLoading = ref(false)
+const followLoading = ref(false)
 const showEditModal = ref(false)
 const activeRelationTab = ref('followers')
 const confirmNewPassword = ref('')
@@ -244,6 +263,10 @@ const profileForm = reactive({
 })
 
 const resolvedAvatarUrl = computed(() => resolveMediaUrl(profileForm.avatarUrl))
+const viewedUserId = computed(() => String(route.params.userId || ''))
+const isOwnProfile = computed(() => !viewedUserId.value || viewedUserId.value === authState.user?.id)
+const displayNickname = computed(() => profileForm.nickname || profileHome.value?.user.nickname || '旅行者')
+const displayGender = computed(() => profileForm.gender || profileHome.value?.user.gender || '')
 const profilePosts = computed<CommunityPost[]>(() => profileHome.value?.posts || [])
 const followers = computed<CommunityUserSummary[]>(() => profileHome.value?.followers || [])
 const following = computed<CommunityUserSummary[]>(() => profileHome.value?.following || [])
@@ -260,13 +283,34 @@ const hydrateFromUser = (user: NonNullable<typeof authState.user>) => {
   profileForm.gender = user.gender || ''
 }
 
-onMounted(async () => {
-  if (authState.user) {
-    hydrateFromUser(authState.user)
+const hydrateFromCommunityUser = (user: CommunityUserSummary) => {
+  profileForm.nickname = user.nickname
+  profileForm.email = ''
+  profileForm.avatarUrl = user.avatar_url || ''
+  profileForm.gender = user.gender || ''
+}
+
+const prepareProfile = async () => {
+  showEditModal.value = false
+  if (isOwnProfile.value) {
+    if (authState.user) {
+      hydrateFromUser(authState.user)
+    } else {
+      await loadCurrentUser()
+    }
   } else {
-    await loadCurrentUser()
+    profileForm.nickname = ''
+    profileForm.email = ''
+    profileForm.avatarUrl = ''
+    profileForm.gender = ''
   }
   await loadProfileHome()
+}
+
+onMounted(prepareProfile)
+
+watch(() => route.params.userId, () => {
+  void prepareProfile()
 })
 
 const loadCurrentUser = async () => {
@@ -284,15 +328,46 @@ const loadCurrentUser = async () => {
 const loadProfileHome = async () => {
   homeLoading.value = true
   try {
-    const response = await getMyCommunityProfile()
+    const response = isOwnProfile.value ? await getMyCommunityProfile() : await getCommunityProfile(viewedUserId.value)
     if (!response.success || !response.data) {
       throw new Error(response.message || '获取个人主页失败')
     }
     profileHome.value = response.data
+    if (!isOwnProfile.value) {
+      hydrateFromCommunityUser(response.data.user)
+    }
   } catch (error: any) {
     message.error(error.message || '获取个人主页失败')
   } finally {
     homeLoading.value = false
+  }
+}
+
+const openUserProfile = (userId: string) => {
+  if (!userId) return
+  if (userId === authState.user?.id) {
+    router.push({ name: 'Profile' })
+    return
+  }
+  router.push({ name: 'UserProfile', params: { userId } })
+}
+
+const openProfilePost = (postId: string) => {
+  router.push({ name: 'Community', query: { postId } })
+}
+
+const toggleProfileFollow = async () => {
+  if (!profileHome.value || isOwnProfile.value) return
+  followLoading.value = true
+  try {
+    const wasFollowing = profileHome.value.user.followed_by_me
+    const response = await toggleCommunityAuthorFollow(profileHome.value.user.id)
+    profileHome.value.user.followed_by_me = response.active
+    profileHome.value.follower_count += response.active && !wasFollowing ? 1 : !response.active && wasFollowing ? -1 : 0
+  } catch (error: any) {
+    message.error(error.message || '关注状态更新失败')
+  } finally {
+    followLoading.value = false
   }
 }
 
@@ -531,6 +606,11 @@ const formatDate = (value?: string) => {
   background: var(--brand-primary-deep);
 }
 
+.profile-edit-entry:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
 .profile-stats-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -628,6 +708,20 @@ button.profile-stat-tile {
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.84);
   box-shadow: 0 18px 38px rgba(77, 122, 181, 0.12);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.profile-post-card:hover,
+.profile-post-card:focus-visible {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 44px rgba(77, 122, 181, 0.16);
+}
+
+.profile-post-card:focus-visible,
+.profile-user-row:focus-visible {
+  outline: 2px solid rgba(45, 134, 231, 0.4);
+  outline-offset: 2px;
 }
 
 .profile-post-card__image {
@@ -695,6 +789,13 @@ button.profile-stat-tile {
   border: 1px solid rgba(191, 214, 239, 0.76);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.84);
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.profile-user-row:hover {
+  transform: translateY(-2px);
+  background: rgba(234, 245, 255, 0.86);
 }
 
 .profile-user-row img,

@@ -9,8 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ...agents.trip_planner_agent import get_trip_planner_agent
 from ...db.models import User
-from ...models.schemas import RecommendationReason, TripPlanResponse, TripRequest
+from ...models.schemas import RecommendationReason, TripPlanResponse, TripRequest, TripScoreRequest, TripScoreResponse
 from ...services.memory_service import get_memory_service
+from ...services.plan_score_service import get_plan_score_service
 from ...services.profile_service import get_profile_service
 from ...services.retriever_service import get_retriever_service
 from ...services.security_service import get_current_user
@@ -53,7 +54,7 @@ async def plan_trip(
         profile_service.update_profile_from_request(request)
         memory_service.save_session_facts(request)
         logger.info(
-            "⏱️ Trip API profile/session prepared city=%s elapsed=%.2fs",
+            "鈴憋笍 Trip API profile/session prepared city=%s elapsed=%.2fs",
             request.city,
             perf_counter() - profile_started_at,
         )
@@ -71,7 +72,7 @@ async def plan_trip(
             city=request.city,
         )
         logger.info(
-            "⏱️ Trip API memory context prepared city=%s elapsed=%.2fs memories=%s",
+            "鈴憋笍 Trip API memory context prepared city=%s elapsed=%.2fs memories=%s",
             request.city,
             perf_counter() - memory_started_at,
             len(memories),
@@ -91,7 +92,7 @@ async def plan_trip(
             for reason in rag_bundle.get("recommendation_reasons", [])
         ]
         logger.info(
-            "⏱️ Trip API rag prepared city=%s elapsed=%.2fs recall=%s rerank=%s reasons=%s",
+            "鈴憋笍 Trip API rag prepared city=%s elapsed=%.2fs recall=%s rerank=%s reasons=%s",
             request.city,
             perf_counter() - rag_started_at,
             rag_bundle.get("recall_count", 0),
@@ -107,7 +108,7 @@ async def plan_trip(
             rag_context=rag_context,
         )
         logger.info(
-            "⏱️ Trip API skills prepared city=%s elapsed=%.2fs skills=%s",
+            "鈴憋笍 Trip API skills prepared city=%s elapsed=%.2fs skills=%s",
             request.city,
             perf_counter() - skill_started_at,
             len(static_skills),
@@ -123,8 +124,9 @@ async def plan_trip(
             skills=static_skills,
         )
         trip_plan.recommendation_reasons = recommendation_reasons
+        trip_plan.decision_score = get_plan_score_service().evaluate_trip_plan(trip_plan, request)
         logger.info(
-            "⏱️ Trip API planner completed city=%s elapsed=%.2fs days=%s",
+            "鈴憋笍 Trip API planner completed city=%s elapsed=%.2fs days=%s",
             request.city,
             perf_counter() - planner_started_at,
             len(trip_plan.days),
@@ -133,7 +135,7 @@ async def plan_trip(
         save_started_at = perf_counter()
         memory_service.save_trip_summary(request, trip_plan)
         logger.info(
-            "⏱️ Trip API summary saved city=%s elapsed=%.2fs total_elapsed=%.2fs",
+            "鈴憋笍 Trip API summary saved city=%s elapsed=%.2fs total_elapsed=%.2fs",
             request.city,
             perf_counter() - save_started_at,
             perf_counter() - started_at,
@@ -160,3 +162,17 @@ async def health_check() -> dict:
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Service unavailable: {exc}") from exc
 
+
+@router.post("/score", response_model=TripScoreResponse, summary="Evaluate trip decision score")
+async def score_trip_plan(
+    request: TripScoreRequest,
+    current_user: User = Depends(get_current_user),
+) -> TripScoreResponse:
+    del current_user
+    try:
+        scoring_service = get_plan_score_service()
+        score = scoring_service.evaluate_trip_plan(request.plan, request.summary)
+        return TripScoreResponse(success=True, message="Trip score evaluated successfully", data=score)
+    except Exception as exc:
+        logger.exception("Failed to evaluate trip score")
+        raise HTTPException(status_code=500, detail=f"Failed to evaluate trip score: {exc}") from exc

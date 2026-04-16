@@ -99,6 +99,18 @@ class FeedbackCreateRequest(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+class TripScoreSummary(BaseModel):
+    """Lightweight summary payload used by decision scoring."""
+
+    budget_level: Optional[str] = Field(default=None, description="low/medium/high")
+    travel_style: List[str] = Field(default_factory=list, description="e.g. citywalk, museum, food")
+    companions: List[str] = Field(default_factory=list, description="e.g. solo, couple, family")
+    dietary_restrictions: List[str] = Field(default_factory=list)
+    mobility_needs: List[str] = Field(default_factory=list)
+    transportation: str = Field(default="", description="Preferred transportation mode")
+    free_text_input: str = Field(default="", description="Extra request")
+
+
 # =====================
 # Domain schemas
 # =====================
@@ -203,6 +215,36 @@ class Budget(BaseModel):
     total: int = 0
 
 
+class DecisionScoreFactor(BaseModel):
+    label: str
+    impact: float = 0.0
+    reason: str = ""
+    value: str = ""
+
+
+class DecisionScoreDimension(BaseModel):
+    key: str
+    label: str
+    description: str
+    score: int = 0
+    detail: str = ""
+    narrative: str = ""
+    factors: List[DecisionScoreFactor] = Field(default_factory=list)
+
+
+class DecisionScoreSnapshot(BaseModel):
+    overall: int = 0
+    dimensions: List[DecisionScoreDimension] = Field(default_factory=list)
+    summary: str = ""
+    story: str = ""
+    highlights: List[str] = Field(default_factory=list)
+    risks: List[str] = Field(default_factory=list)
+    budget: Budget = Field(default_factory=Budget)
+    estimated_distance_km: float = 0.0
+    estimated_distance_text: str = ""
+    comfort_text: str = ""
+
+
 class RecommendationReason(BaseModel):
     source_type: str = Field(default="knowledge_base", description="knowledge_base/profile/memory")
     title: str = Field(default="", description="前端展示标题")
@@ -222,6 +264,7 @@ class TripPlan(BaseModel):
     weather_info: List[WeatherInfo] = Field(default_factory=list)
     overall_suggestions: str
     budget: Optional[Budget] = None
+    decision_score: Optional[DecisionScoreSnapshot] = None
     recommendation_reasons: List[RecommendationReason] = Field(default_factory=list)
     applied_skills: List[SelectedSkill] = Field(default_factory=list)
 
@@ -390,6 +433,17 @@ class TripPlanResponse(BaseModel):
     success: bool
     message: str = ""
     data: Optional[TripPlan] = None
+
+
+class TripScoreRequest(BaseModel):
+    plan: TripPlan
+    summary: Optional[TripScoreSummary] = None
+
+
+class TripScoreResponse(BaseModel):
+    success: bool
+    message: str = ""
+    data: Optional[DecisionScoreSnapshot] = None
 
 
 class POISearchResponse(BaseModel):

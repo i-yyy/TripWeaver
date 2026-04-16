@@ -27,6 +27,7 @@ const router = createRouter({
     { path: '/collab', name: 'CollabTrips', component: CollabTrips, meta: { requiresAuth: true } },
     { path: '/collab/:tripId', name: 'CollabTripDetail', component: CollabTripDetail, meta: { requiresAuth: true } },
     { path: '/profile', name: 'Profile', component: Profile, meta: { requiresAuth: true } },
+    { path: '/users/:userId', name: 'UserProfile', component: Profile, meta: { requiresAuth: true } },
     { path: '/tracks', name: 'Tracks', component: Tracks, meta: { requiresAuth: true } },
     { path: '/kb-eval', name: 'KBEval', component: KBEval, meta: { requiresAuth: true, requiresDeveloper: true } },
   ],

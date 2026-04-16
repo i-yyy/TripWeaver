@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --brand-bg: linear-gradient(180deg, #eef6ff 0%, #dcecff 40%, #eef5ff 100%);
   --brand-surface: rgba(255, 255, 255, 0.68);
   --brand-surface-strong: rgba(255, 255, 255, 0.82);
@@ -47,9 +47,7 @@ body {
   box-sizing: border-box;
 }
 
-*::selection {
-  background: rgba(45, 134, 231, 0.2);
-}
+*::selection { background: rgba(45, 134, 231, 0.2); }
 
 button,
 input,

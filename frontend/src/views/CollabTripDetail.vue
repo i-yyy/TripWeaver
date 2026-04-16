@@ -3,98 +3,118 @@
     <div class="brand-shell collab-detail">
       <a-spin :spinning="loading">
         <template v-if="trip && draftPlan">
-          <section class="collab-detail-hero">
-            <div>
-              <button class="collab-back" type="button" @click="router.push('/collab')">返回协同行程</button>
-              <h1>{{ trip.title }}</h1>
-              <p>{{ trip.city }} · {{ trip.start_date }} - {{ trip.end_date }} · 版本 v{{ trip.version }}</p>
+          <div class="glass-toolbar collab-result-toolbar">
+            <div class="toolbar-group">
+              <a-button size="large" @click="router.push('/collab')">↩️ 返回协同行程</a-button>
             </div>
-            <div class="collab-detail-actions">
-              <a-button v-if="canInvite" @click="showInviteModal = true">邀请好友</a-button>
+            <div class="toolbar-group">
+              <a-button v-if="canInvite" @click="showInviteModal = true">👥 邀请好友</a-button>
               <a-button danger :loading="deleting" @click="deleteCurrentTrip">{{ canInvite ? '删除协同行程' : '退出协同行程' }}</a-button>
-              <a-button type="primary" :disabled="!canEdit" :loading="saving" @click="savePlan">保存修改</a-button>
+              <a-button type="primary" :disabled="!canEdit" :loading="saving" @click="savePlan">💾 保存修改</a-button>
+            </div>
+          </div>
+
+          <section class="glass-panel collab-result-hero">
+            <span class="page-kicker">🤝 协同行程</span>
+            <h1 class="page-title collab-result-title">{{ trip.title }}</h1>
+            <p class="collab-result-meta">{{ trip.city }}｜{{ trip.start_date }} - {{ trip.end_date }}｜版本 v{{ trip.version }}</p>
+            <div class="collab-result-tags">
+              <span>{{ roleLabel(trip.my_role) }}</span>
+              <span>{{ activeMembers.length }} 位成员</span>
+              <span>{{ canEdit ? '可编辑' : '仅查看' }}</span>
             </div>
           </section>
 
-          <section class="collab-detail-grid">
-            <main class="collab-plan-panel">
-              <div class="collab-section-head">
-                <div>
-                  <h2>共创行程内容</h2>
-                  <p>{{ canEdit ? '你可以直接编辑每天的安排，保存后会产生一条修改记录。' : '你当前是仅查看成员，可以评论和投票。' }}</p>
-                </div>
+          <section v-if="draftPlan.budget" class="glass-panel glass-panel--soft collab-result-panel">
+            <div class="section-heading">
+              <h2>💰 预算汇总</h2>
+              <p>费用为参考估算，保存修改后会同步到这份协同行程中。</p>
+            </div>
+            <div class="collab-budget-grid">
+              <div class="brand-stat">
+                <span>📍 景点</span>
+                <strong>{{ currency(draftPlan.budget.total_attractions) }}</strong>
               </div>
-
-              <div class="collab-overview-grid">
-                <div class="collab-stat-card">
-                  <span>目的地</span>
-                  <strong>{{ draftPlan.city }}</strong>
-                </div>
-                <div class="collab-stat-card">
-                  <span>行程天数</span>
-                  <strong>{{ draftPlan.days.length }} 天</strong>
-                </div>
-                <div v-if="draftPlan.budget" class="collab-stat-card">
-                  <span>预算总计</span>
-                  <strong>{{ currency(draftPlan.budget.total) }}</strong>
-                </div>
-                <div class="collab-stat-card">
-                  <span>协同版本</span>
-                  <strong>v{{ trip.version }}</strong>
-                </div>
+              <div class="brand-stat">
+                <span>🏨 酒店</span>
+                <strong>{{ currency(draftPlan.budget.total_hotels) }}</strong>
               </div>
+              <div class="brand-stat">
+                <span>🍽️ 餐饮</span>
+                <strong>{{ currency(draftPlan.budget.total_meals) }}</strong>
+              </div>
+              <div class="brand-stat">
+                <span>🚇 交通</span>
+                <strong>{{ currency(draftPlan.budget.total_transportation) }}</strong>
+              </div>
+              <div class="brand-stat budget-total">
+                <span>🧾 总计</span>
+                <strong>{{ currency(draftPlan.budget.total) }}</strong>
+              </div>
+            </div>
+          </section>
 
-              <section class="collab-advice-card">
-                <div>
-                  <span>整体建议</span>
-                  <p v-if="!canEdit">{{ draftPlan.overall_suggestions || '暂无整体建议' }}</p>
-                </div>
-                <a-textarea v-if="canEdit" v-model:value="draftPlan.overall_suggestions" :rows="3" />
-              </section>
+          <section class="glass-panel glass-panel--soft collab-result-panel">
+            <div class="section-heading">
+              <h2>🗓️ 每日行程</h2>
+              <p>{{ canEdit ? '像旅行规划结果页一样浏览行程，并直接编辑景点、餐食、交通和住宿。' : '你当前只有查看权限，可以浏览行程并为景点投票。' }}</p>
+            </div>
 
-              <div class="collab-day-list">
-                <article v-for="day in draftPlan.days" :key="day.day_index" class="collab-day-card">
-                  <div class="collab-day-card__head">
-                    <div>
-                      <span>Day {{ day.day_index + 1 }}</span>
-                      <strong>{{ day.date }}</strong>
+            <section class="collab-advice-card">
+              <div>
+                <span>整体建议</span>
+                <p v-if="!canEdit">{{ draftPlan.overall_suggestions || '暂无整体建议' }}</p>
+              </div>
+              <a-textarea v-if="canEdit" v-model:value="draftPlan.overall_suggestions" :rows="3" placeholder="填写整体建议" />
+            </section>
+
+            <a-collapse ghost>
+              <a-collapse-panel
+                v-for="day in draftPlan.days"
+                :key="String(day.day_index)"
+                :header="`第 ${day.day_index + 1} 天 · ${day.date}`"
+              >
+                <div class="collab-day-layout">
+                  <div class="entity-card collab-day-summary-card">
+                    <div class="section-heading compact-heading">
+                      <h3>📝 每日行程</h3>
                     </div>
-                    <button class="collab-comment-jump" type="button" @click="commentForm.dayIndex = day.day_index">
-                      讨论这一天
-                    </button>
+                    <div class="collab-day-summary">
+                      <label>
+                        <strong>当日概览</strong>
+                        <a-textarea v-if="canEdit" v-model:value="day.description" :rows="3" placeholder="填写当天行程概览" />
+                        <span v-else>{{ day.description || '暂无安排' }}</span>
+                      </label>
+                      <label>
+                        <strong>交通方式</strong>
+                        <a-input v-if="canEdit" v-model:value="day.transportation" placeholder="例如：地铁、步行、打车" />
+                        <span v-else>{{ day.transportation || '暂无' }}</span>
+                      </label>
+                      <label>
+                        <strong>住宿安排</strong>
+                        <a-input v-if="canEdit" v-model:value="day.accommodation" placeholder="例如：市中心酒店" />
+                        <span v-else>{{ day.accommodation || '暂无' }}</span>
+                      </label>
+                      <label>
+                        <strong>路线摘要</strong>
+                        <a-textarea v-if="canEdit" v-model:value="day.route_summary" :rows="2" placeholder="填写路线摘要" />
+                        <span v-else>{{ day.route_summary || '暂无路线摘要' }}</span>
+                      </label>
+                    </div>
                   </div>
 
-                  <div class="collab-day-visual-grid">
-                    <section class="collab-info-card collab-info-card--wide">
-                      <span>当日概览</span>
-                      <a-textarea v-if="canEdit" v-model:value="day.description" :rows="3" />
-                      <p v-else>{{ day.description || '暂无安排' }}</p>
-                    </section>
-                    <section class="collab-info-card">
-                      <span>交通方式</span>
-                      <a-input v-if="canEdit" v-model:value="day.transportation" />
-                      <strong v-else>{{ day.transportation || '暂无' }}</strong>
-                    </section>
-                    <section class="collab-info-card">
-                      <span>住宿方式</span>
-                      <a-input v-if="canEdit" v-model:value="day.accommodation" />
-                      <strong v-else>{{ day.accommodation || '暂无' }}</strong>
-                    </section>
-                    <section class="collab-info-card collab-info-card--wide">
-                      <span>交通说明</span>
-                      <a-textarea v-if="canEdit" v-model:value="day.transportation_detail" :rows="2" />
-                      <p v-else>{{ day.transportation_detail || '暂无交通说明' }}</p>
-                    </section>
-                    <section class="collab-info-card collab-info-card--wide">
-                      <span>路线备注</span>
-                      <a-textarea v-if="canEdit" v-model:value="day.route_summary" :rows="2" />
-                      <p v-else>{{ day.route_summary || '暂无路线备注' }}</p>
-                    </section>
-                  </div>
-
-                  <section v-if="day.hotel" class="collab-hotel-card">
-                    <div class="collab-subtitle">酒店安排</div>
-                    <div class="collab-hotel-card__body">
+                  <div v-if="day.hotel" class="entity-card collab-hotel-card">
+                    <div class="section-heading compact-heading">
+                      <h3>🏨 酒店推荐</h3>
+                    </div>
+                    <div v-if="canEdit" class="collab-edit-grid">
+                      <a-input v-model:value="day.hotel.name" placeholder="酒店名称" />
+                      <a-input v-model:value="day.hotel.address" placeholder="酒店地址" />
+                      <a-input v-model:value="day.hotel.type" placeholder="住宿类型" />
+                      <a-input v-model:value="day.hotel.rating" placeholder="评分" />
+                      <a-input-number v-model:value="day.hotel.estimated_cost" :min="0" addon-before="￥" addon-after="晚" />
+                    </div>
+                    <div v-else class="collab-hotel-card__body">
                       <div>
                         <strong>{{ day.hotel.name }}</strong>
                         <p>{{ day.hotel.address || '暂无地址' }}</p>
@@ -105,11 +125,19 @@
                         <span>{{ currency(day.hotel.estimated_cost || 0) }}/晚</span>
                       </div>
                     </div>
-                  </section>
+                  </div>
+                </div>
 
-                  <section v-if="day.attractions.length" class="collab-attraction-list">
-                    <div class="collab-subtitle">景点安排与投票</div>
-                    <article v-for="(attraction, index) in day.attractions" :key="targetId(day.day_index, attraction, index)" class="collab-attraction-row">
+                <section class="day-section day-section--full day-section--divider">
+                  <div class="section-heading compact-heading collab-meal-head">
+                    <div>
+                      <h3>📍 景点安排</h3>
+                      <p>可以调整游玩顺序，也可以直接修改景点名称、地址、停留时间和门票。</p>
+                    </div>
+                    <a-button v-if="canEdit" size="small" type="primary" @click="addAttraction(day.day_index)">新增景点</a-button>
+                  </div>
+                  <template v-if="day.attractions.length">
+                    <article v-for="(attraction, index) in day.attractions" :key="targetId(day.day_index, attraction, index)" class="entity-card entity-card--full collab-attraction-row">
                       <img
                         class="collab-attraction-row__image"
                         :src="resolveAttractionImage(attraction)"
@@ -117,96 +145,77 @@
                         @error="handleImageError"
                       />
                       <div class="collab-attraction-row__content">
-                        <div>
+                        <div class="entity-card__header">
                           <strong>{{ index + 1 }}. {{ attraction.name }}</strong>
-                          <p>{{ attraction.address || '暂无地址' }}</p>
+                          <a-space v-if="canEdit">
+                            <a-button size="small" :disabled="index === 0" @click="moveAttraction(day.day_index, index, -1)">⬆️ 上移</a-button>
+                            <a-button size="small" :disabled="index === day.attractions.length - 1" @click="moveAttraction(day.day_index, index, 1)">⬇️ 下移</a-button>
+                            <a-button size="small" danger @click="deleteAttraction(day.day_index, index)">🗑️ 删除</a-button>
+                          </a-space>
                         </div>
-                        <div class="collab-mini-metrics">
-                          <span>{{ attraction.visit_duration || 0 }} 分钟</span>
-                          <span>{{ currency(attraction.ticket_price || 0) }}</span>
-                          <span>想去 {{ voteCount(targetId(day.day_index, attraction, index)) }}</span>
-                        </div>
-                        <p class="collab-attraction-row__desc">{{ attraction.description || '暂无说明' }}</p>
+
                         <div v-if="canEdit" class="collab-attraction-edit">
+                          <a-input v-model:value="attraction.name" placeholder="景点名称" />
                           <a-input v-model:value="attraction.address" placeholder="景点地址" />
                           <a-input-number v-model:value="attraction.visit_duration" :min="10" :max="480" addon-after="分钟" />
                           <a-input-number v-model:value="attraction.ticket_price" :min="0" addon-before="￥" />
-                          <a-textarea v-model:value="attraction.description" :rows="2" placeholder="景点说明" />
+                          <a-textarea v-model:value="attraction.description" :rows="3" placeholder="景点说明" />
                         </div>
+                        <template v-else>
+                          <div class="collab-mini-metrics">
+                            <span>{{ attraction.visit_duration || 0 }} 分钟</span>
+                            <span>{{ currency(attraction.ticket_price || 0) }}</span>
+                            <span>想去 {{ voteCount(targetId(day.day_index, attraction, index)) }}</span>
+                          </div>
+                          <p class="collab-attraction-row__desc">{{ attraction.description || '暂无说明' }}</p>
+                        </template>
+
                         <div class="collab-card-actions">
-                          <a-button size="small" :disabled="!canEdit || index === 0" @click="moveAttraction(day.day_index, index, -1)">上移</a-button>
-                          <a-button size="small" :disabled="!canEdit || index === day.attractions.length - 1" @click="moveAttraction(day.day_index, index, 1)">下移</a-button>
                           <a-button size="small" :type="hasVoted(targetId(day.day_index, attraction, index)) ? 'primary' : 'default'" @click="toggleVote(targetId(day.day_index, attraction, index))">
                             想去 {{ voteCount(targetId(day.day_index, attraction, index)) }}
                           </a-button>
                         </div>
                       </div>
                     </article>
-                  </section>
+                  </template>
+                  <a-empty v-else description="暂无景点安排" />
+                </section>
 
-                  <section v-if="day.meals.length" class="collab-meal-list">
-                    <div class="collab-subtitle">餐饮安排</div>
-                    <article v-for="meal in day.meals" :key="`${day.day_index}-${meal.type}-${meal.name}`" class="collab-meal-card">
-                      <strong>{{ mealLabel(meal.type) }} · {{ meal.name }}</strong>
-                      <p>{{ meal.description || '暂无推荐理由' }}</p>
-                      <span>{{ currency(meal.estimated_cost || 0) }}</span>
-                    </article>
-                  </section>
-                </article>
-              </div>
-            </main>
-
-            <aside class="collab-side-panel">
-              <section>
-                <h2>成员</h2>
-                <div class="collab-member-list">
-                  <article v-for="member in activeMembers" :key="member.id" class="collab-user-row">
-                    <img v-if="member.user.avatar_url" :src="resolveMediaUrl(member.user.avatar_url)" :alt="`${member.user.nickname} 的头像`" />
-                    <div v-else class="collab-user-row__avatar" :style="avatarStyle(member.user.nickname)">{{ avatarText(member.user.nickname) }}</div>
+                <section class="day-section day-section--full day-section--divider">
+                  <div class="section-heading compact-heading collab-meal-head">
                     <div>
-                      <strong>{{ member.user.nickname }}</strong>
-                      <p>{{ roleLabel(member.role) }}</p>
+                      <h3>🍽️ 餐厅推荐</h3>
+                      <p>早餐、午餐、晚餐和加餐都可以在这里调整。</p>
                     </div>
-                  </article>
-                </div>
-              </section>
-
-              <section>
-                <h2>讨论</h2>
-                <a-form layout="vertical">
-                  <a-form-item label="关联到哪一天">
-                    <a-select v-model:value="commentForm.dayIndex" allow-clear placeholder="整份行程">
-                      <a-select-option v-for="day in draftPlan.days" :key="day.day_index" :value="day.day_index">
-                        第 {{ day.day_index + 1 }} 天
-                      </a-select-option>
-                    </a-select>
-                  </a-form-item>
-                  <a-form-item>
-                    <a-textarea v-model:value="commentForm.content" :rows="3" placeholder="写下你的建议" />
-                  </a-form-item>
-                  <a-button type="primary" :loading="commenting" @click="submitComment">发送评论</a-button>
-                </a-form>
-                <div class="collab-comment-list">
-                  <article v-for="comment in trip.comments" :key="comment.id" class="collab-comment">
-                    <div class="collab-comment__head">
-                      <strong>{{ comment.user.nickname }}</strong>
-                      <span>{{ comment.day_index == null ? '整份行程' : `第 ${comment.day_index + 1} 天` }} · {{ formatTime(comment.created_at) }}</span>
-                    </div>
-                    <p>{{ comment.content }}</p>
-                  </article>
-                </div>
-              </section>
-
-              <section>
-                <h2>修改记录</h2>
-                <div class="collab-change-list">
-                  <article v-for="change in trip.changes" :key="change.id" class="collab-change">
-                    <strong>{{ change.summary }}</strong>
-                    <p>{{ change.user.nickname }} · {{ formatTime(change.created_at) }}</p>
-                  </article>
-                </div>
-              </section>
-            </aside>
+                    <a-button v-if="canEdit" size="small" type="primary" @click="addMeal(day.day_index)">新增餐食</a-button>
+                  </div>
+                  <div v-if="day.meals.length" class="collab-meal-list">
+                    <article v-for="(meal, mealIndex) in day.meals" :key="`${day.day_index}-${mealIndex}-${meal.name}`" class="entity-card entity-card--full collab-meal-card">
+                      <template v-if="canEdit">
+                        <div class="collab-meal-edit">
+                          <a-select v-model:value="meal.type">
+                            <a-select-option value="breakfast">早餐</a-select-option>
+                            <a-select-option value="lunch">午餐</a-select-option>
+                            <a-select-option value="dinner">晚餐</a-select-option>
+                            <a-select-option value="snack">加餐</a-select-option>
+                          </a-select>
+                          <a-input v-model:value="meal.name" placeholder="餐厅或餐食名称" />
+                          <a-input-number v-model:value="meal.estimated_cost" :min="0" addon-before="￥" />
+                          <a-textarea v-model:value="meal.description" :rows="2" placeholder="推荐理由" />
+                          <a-button danger @click="deleteMeal(day.day_index, mealIndex)">删除餐食</a-button>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <strong>{{ mealLabel(meal.type) }} · {{ meal.name }}</strong>
+                        <p><strong>💰 人均预算：</strong><span>{{ currency(meal.estimated_cost || 0) }}</span></p>
+                        <p><strong>💡 推荐理由：</strong><span>{{ meal.description || '暂无说明' }}</span></p>
+                      </template>
+                    </article>
+                  </div>
+                  <a-empty v-else description="暂无餐食安排" />
+                </section>
+              </a-collapse-panel>
+            </a-collapse>
           </section>
         </template>
 
@@ -243,7 +252,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 
 import {
-  addCollabTripComment,
   deleteCollabTrip,
   getCollabTrip,
   inviteCollabTripMember,
@@ -251,8 +259,7 @@ import {
   updateCollabTripPlan,
   voteCollabTripItem,
 } from '@/services/api'
-import type { Attraction, CollabTripDetail, TripPlan } from '@/types'
-import { avatarStyle, avatarText } from '@/utils/avatar'
+import type { Attraction, CollabTripDetail, Meal, TripPlan } from '@/types'
 import { useAuthState } from '@/utils/auth'
 
 const route = useRoute()
@@ -262,7 +269,6 @@ const loading = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
 const inviting = ref(false)
-const commenting = ref(false)
 const showInviteModal = ref(false)
 const trip = ref<CollabTripDetail | null>(null)
 const draftPlan = ref<TripPlan | null>(null)
@@ -270,11 +276,6 @@ const draftPlan = ref<TripPlan | null>(null)
 const inviteForm = reactive({
   identifier: '',
   role: 'editor',
-})
-
-const commentForm = reactive({
-  dayIndex: undefined as number | undefined,
-  content: '',
 })
 
 const tripId = computed(() => String(route.params.tripId || ''))
@@ -363,29 +364,6 @@ const sendInvite = async () => {
   }
 }
 
-const submitComment = async () => {
-  if (!trip.value) return
-  if (!commentForm.content.trim()) {
-    message.error('请输入评论内容')
-    return
-  }
-  commenting.value = true
-  try {
-    await addCollabTripComment(trip.value.id, {
-      content: commentForm.content.trim(),
-      day_index: commentForm.dayIndex ?? null,
-    })
-    commentForm.content = ''
-    commentForm.dayIndex = undefined
-    await loadTrip()
-    message.success('评论已发送')
-  } catch (error: any) {
-    message.error(error.message || '发送评论失败')
-  } finally {
-    commenting.value = false
-  }
-}
-
 const toggleVote = async (targetIdValue: string) => {
   if (!trip.value) return
   try {
@@ -410,6 +388,51 @@ const moveAttraction = (dayIndex: number, index: number, direction: -1 | 1) => {
   const [item] = nextAttractions.splice(index, 1)
   nextAttractions.splice(nextIndex, 0, item)
   day.attractions = nextAttractions
+}
+
+const addAttraction = (dayIndex: number) => {
+  if (!draftPlan.value) return
+  const day = draftPlan.value.days.find((item) => item.day_index === dayIndex)
+  if (!day) return
+  day.attractions.push({
+    name: '新的景点',
+    address: '',
+    location: { longitude: 0, latitude: 0 },
+    visit_duration: 60,
+    description: '',
+    ticket_price: 0,
+  })
+}
+
+const deleteAttraction = (dayIndex: number, index: number) => {
+  if (!draftPlan.value) return
+  const day = draftPlan.value.days.find((item) => item.day_index === dayIndex)
+  if (!day) return
+  if (day.attractions.length <= 1) {
+    message.warning('每天至少保留一个景点')
+    return
+  }
+  day.attractions.splice(index, 1)
+}
+
+const addMeal = (dayIndex: number) => {
+  if (!draftPlan.value) return
+  const day = draftPlan.value.days.find((item) => item.day_index === dayIndex)
+  if (!day) return
+  const meal: Meal = {
+    type: 'lunch',
+    name: '新的餐食安排',
+    description: '',
+    estimated_cost: 0,
+  }
+  day.meals.push(meal)
+}
+
+const deleteMeal = (dayIndex: number, index: number) => {
+  if (!draftPlan.value) return
+  const day = draftPlan.value.days.find((item) => item.day_index === dayIndex)
+  if (!day) return
+  day.meals.splice(index, 1)
 }
 
 const targetId = (dayIndex: number, attraction: Attraction, index: number) =>
@@ -440,7 +463,7 @@ const handleImageError = (event: Event) => {
   target.src = 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80'
 }
 
-const currency = (value?: number) => `¥${Number(value || 0).toLocaleString('zh-CN')}`
+const currency = (value?: number) => `￥${Number(value || 0).toLocaleString('zh-CN')}`
 
 const mealLabel = (type?: string) => {
   const labels: Record<string, string> = {
@@ -459,17 +482,6 @@ const roleLabel = (role: string) => {
     viewer: '仅查看',
   }
   return labels[role] || role
-}
-
-const formatTime = (value: string) => {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('zh-CN', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 </script>
 
@@ -829,14 +841,232 @@ const formatTime = (value: string) => {
   font-weight: 700;
 }
 
+.collab-result-toolbar {
+  margin-bottom: 0;
+}
+
+.collab-result-hero,
+.collab-result-panel {
+  border: 0;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 24px 60px rgba(65, 110, 168, 0.14);
+  backdrop-filter: blur(18px);
+}
+
+.collab-result-hero {
+  display: grid;
+  gap: 10px;
+  padding: 42px;
+  background: #eaf5ff;
+}
+
+.collab-result-title {
+  margin-bottom: 0;
+}
+
+.collab-result-meta {
+  margin: 0;
+  color: var(--brand-muted);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.collab-result-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.collab-result-tags span {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(45, 134, 231, 0.12);
+  color: #1d5d9b;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.collab-result-panel {
+  padding: 26px;
+}
+
+.collab-budget-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.collab-result-panel .brand-stat,
+.budget-total,
+.entity-card,
+.collab-advice-card,
+.collab-hotel-card,
+.collab-attraction-row,
+.collab-meal-card {
+  border: 0;
+}
+
+.collab-result-panel .brand-stat {
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 14px 28px rgba(77, 122, 181, 0.09);
+}
+
+.budget-total {
+  background: #eaf5ff !important;
+}
+
+.collab-day-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.entity-card {
+  width: 100%;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 38px rgba(77, 122, 181, 0.1);
+}
+
+.entity-card--full {
+  margin-bottom: 14px;
+}
+
+.entity-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.entity-card__header strong {
+  color: #111111;
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.collab-day-summary-card,
+.collab-hotel-card {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.collab-day-summary {
+  display: grid;
+  gap: 12px;
+}
+
+.collab-day-summary label {
+  display: grid;
+  gap: 8px;
+}
+
+.collab-day-summary strong {
+  color: var(--brand-primary);
+  font-size: 14px;
+}
+
+.collab-day-summary span {
+  color: #2f4156;
+  line-height: 1.7;
+}
+
+.collab-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.collab-edit-grid :deep(.ant-input-number),
+.collab-attraction-edit :deep(.ant-input-number),
+.collab-meal-edit :deep(.ant-input-number) {
+  width: 100%;
+}
+
+.day-section {
+  margin-top: 18px;
+}
+
+.day-section--divider {
+  padding-top: 18px;
+}
+
+.collab-meal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.collab-meal-head p {
+  margin: 0;
+  color: var(--brand-muted);
+  line-height: 1.65;
+}
+
+.collab-meal-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.collab-meal-edit {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) 150px;
+  gap: 10px;
+}
+
+.collab-meal-edit :deep(.ant-input-textarea) {
+  grid-column: 1 / -1;
+}
+
+.collab-meal-edit > .ant-btn {
+  justify-self: start;
+}
+
+.collab-result-panel :deep(.ant-collapse) {
+  border: 0;
+  background: transparent;
+}
+
+.collab-result-panel :deep(.ant-collapse-item) {
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 24px;
+  background: rgba(234, 245, 255, 0.68);
+  box-shadow: 0 18px 36px rgba(75, 126, 184, 0.1);
+}
+
+.collab-result-panel :deep(.ant-collapse-header) {
+  align-items: center;
+  padding: 18px 22px !important;
+  color: #17324f !important;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.collab-result-panel :deep(.ant-collapse-content-box) {
+  padding: 0 22px 22px !important;
+}
+
 @media (max-width: 1050px) {
   .collab-detail-grid {
     grid-template-columns: 1fr;
   }
 
   .collab-overview-grid,
+  .collab-budget-grid,
   .collab-meal-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .collab-day-layout {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -850,10 +1080,23 @@ const formatTime = (value: string) => {
   }
 
   .collab-overview-grid,
+  .collab-budget-grid,
   .collab-day-visual-grid,
   .collab-meal-list,
-  .collab-attraction-edit {
+  .collab-attraction-edit,
+  .collab-edit-grid,
+  .collab-meal-edit {
     grid-template-columns: 1fr;
+  }
+
+  .collab-result-hero,
+  .collab-result-panel {
+    padding: 20px;
+  }
+
+  .collab-meal-head,
+  .entity-card__header {
+    display: grid;
   }
 }
 </style>
