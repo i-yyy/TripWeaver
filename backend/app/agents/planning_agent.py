@@ -63,12 +63,13 @@ class PlanningAgent:
     async def execute(self, payload: PlanningAgentInput) -> PlanningAgentOutput:
         started_at = perf_counter()
         meal_started_at = perf_counter()
-        meal_candidates_by_day = self._retrieve_meal_candidates(payload)
+        meal_candidates_by_day, meal_source = self._resolve_meal_candidates(payload)
         logger.info(
-            "鈴憋笍 PlanningAgent meal candidates prepared city=%s elapsed=%.2fs days=%s",
+            "鈴憋笍 PlanningAgent meal candidates prepared city=%s elapsed=%.2fs days=%s source=%s",
             payload.request.city,
             perf_counter() - meal_started_at,
             len(meal_candidates_by_day),
+            meal_source,
         )
 
         prompt_started_at = perf_counter()
@@ -369,6 +370,15 @@ class PlanningAgent:
                 candidates_by_day[day_index] = {}
         return candidates_by_day
 
+    def _resolve_meal_candidates(
+        self,
+        payload: PlanningAgentInput,
+    ) -> tuple[Dict[int, Dict[str, List[MealCandidate]]], str]:
+        candidates_from_agent = payload.meal_result.meal_candidates_by_day
+        if candidates_from_agent:
+            return candidates_from_agent, "meal-agent"
+        return self._retrieve_meal_candidates(payload), "planning-fallback"
+
     @staticmethod
     def _meal_candidates_prompt_payload(
         meal_candidates_by_day: Dict[int, Dict[str, List[MealCandidate]]],
@@ -390,15 +400,24 @@ class PlanningAgent:
         merged = list(meals or [])
         existing_types = {str(meal.type or "").lower() for meal in merged}
         defaults_by_type = {meal.type: meal for meal in self._build_default_meals(request)}
+        used_names = {self._normalize_meal_name_for_dedupe(item.name) for item in merged if item.name}
 
         for meal_type in ("breakfast", "lunch", "dinner"):
             if meal_type in existing_types:
                 continue
-            candidate = self._pick_meal_candidate(meal_type, None, (meal_candidates_by_type or {}).get(meal_type, []))
+            candidate = self._pick_meal_candidate(
+                meal_type,
+                None,
+                (meal_candidates_by_type or {}).get(meal_type, []),
+                excluded_names=used_names,
+            )
             if candidate is not None:
                 merged.append(self._candidate_to_meal(candidate, meal_type, request))
+                used_names.add(self._normalize_meal_name_for_dedupe(candidate.name))
             else:
-                merged.append(defaults_by_type[meal_type])
+                fallback_meal = defaults_by_type[meal_type]
+                merged.append(fallback_meal)
+                used_names.add(self._normalize_meal_name_for_dedupe(fallback_meal.name))
 
         return self._sort_meals_by_type(merged[:3])
 
@@ -412,14 +431,23 @@ class PlanningAgent:
         meal_type: str,
         meal: Optional[Meal],
         candidates: List[MealCandidate],
+        excluded_names: Optional[set[str]] = None,
     ) -> Optional[MealCandidate]:
         if not candidates:
             return None
+        excluded = excluded_names or set()
         if meal is not None:
             matched = self._match_candidate_by_name(meal.name, candidates)
-            if matched is not None:
+            if matched is not None and self._normalize_meal_name_for_dedupe(matched.name) not in excluded:
                 return matched
-        return candidates[0]
+        for candidate in candidates:
+            if self._normalize_meal_name_for_dedupe(candidate.name) not in excluded:
+                return candidate
+        return None
+
+    @staticmethod
+    def _normalize_meal_name_for_dedupe(name: str) -> str:
+        return re.sub(r"[\s()（）,，、:：;；·\-_/]+", "", str(name or "")).lower()
 
     @staticmethod
     def _match_candidate_by_name(name: str, candidates: List[MealCandidate]) -> Optional[MealCandidate]:
@@ -450,11 +478,74 @@ class PlanningAgent:
         label = self._meal_type_label(meal_type)
         address = candidate.address or request.city
         dietary_suffix = self._meal_dietary_suffix(request)
-        category = candidate.category or "本地餐饮"
+        category = self._clean_meal_category(candidate.category)
+        eat_what = self._build_meal_food_hint(candidate, meal_type)
+        reason = self._build_meal_reason_hint(meal_type)
+        category_hint = f"店型偏{category}，" if category else ""
         return (
-            f"{label}建议在 {candidate.name} 用餐，地点在 {address}，更方便衔接当天路线。"
-            f"这是一家偏 {category} 方向的候选店，吃什么更具体，也更容易直接落地执行。{dietary_suffix}"
+            f"{label}建议在 {candidate.name} 用餐，可考虑点 {eat_what}。"
+            f"地点在 {address}，{category_hint}{reason}。{dietary_suffix}"
         ).strip()
+
+    @staticmethod
+    def _clean_meal_category(category: str) -> str:
+        raw = str(category or "").strip()
+        if not raw:
+            return ""
+        tokens = [item.strip() for item in re.split(r"[;；:：>|/\\,，\s]+", raw) if item and str(item).strip()]
+        if not tokens:
+            return ""
+
+        ignored = {"餐饮服务", "生活服务", "餐饮", "美食"}
+        normalized: List[str] = []
+        seen: set[str] = set()
+        for token in tokens:
+            if token in ignored:
+                continue
+            if token not in seen:
+                normalized.append(token)
+                seen.add(token)
+        if not normalized:
+            return ""
+        if len(normalized) >= 2 and normalized[-1] != normalized[-2]:
+            return f"{normalized[-2]}、{normalized[-1]}"
+        return normalized[-1]
+
+    def _build_meal_food_hint(self, candidate: MealCandidate, meal_type: str) -> str:
+        text = " ".join(
+            [
+                str(candidate.name or ""),
+                str(candidate.category or ""),
+                str(candidate.source_query or ""),
+            ]
+        ).lower()
+        if any(token in text for token in ("米粉", "粉")):
+            return "一份现煮米粉配小菜"
+        if any(token in text for token in ("面", "拉面")):
+            return "一份热汤面配时蔬或小菜"
+        if any(token in text for token in ("粥", "包子", "早餐")):
+            return "粥点、包点和一份热饮"
+        if any(token in text for token in ("烧烤", "烤")):
+            return "招牌烤物配主食和蔬菜"
+        if any(token in text for token in ("火锅",)):
+            return "小份锅底配主菜和蔬菜拼盘"
+        if meal_type == "breakfast":
+            return "主食搭配蛋白和热饮"
+        if meal_type == "lunch":
+            return "一份主食配热菜，控制油盐和分量"
+        if meal_type == "dinner":
+            return "店内招牌主菜配时蔬和主食"
+        return "店内招牌组合餐"
+
+    @staticmethod
+    def _build_meal_reason_hint(meal_type: str) -> str:
+        if meal_type == "breakfast":
+            return "出餐通常更快，方便上午准时开始行程"
+        if meal_type == "lunch":
+            return "补能效率更高，也便于衔接下午活动"
+        if meal_type == "dinner":
+            return "收尾节奏更从容，适合一天结束后放松休息"
+        return "更方便衔接当天路线安排"
 
     @staticmethod
     def _meal_dietary_suffix(request) -> str:
@@ -672,6 +763,7 @@ class PlanningAgent:
     ) -> List[Meal]:
         defaults_by_type = {meal.type: meal for meal in self._build_default_meals(request)}
         enriched: List[Meal] = []
+        used_names: set[str] = set()
 
         for meal in meals[:3]:
             fallback = defaults_by_type.get(meal.type) or self._build_meal_template(request, meal.type)
@@ -679,6 +771,7 @@ class PlanningAgent:
                 meal.type,
                 meal,
                 (meal_candidates_by_type or {}).get(str(meal.type).lower(), []),
+                excluded_names=used_names,
             )
             name = meal.name.strip()
             if self._is_generic_meal_name(name, meal.type):
@@ -686,6 +779,22 @@ class PlanningAgent:
                     name = candidate.name
                 else:
                     name = fallback.name
+
+            normalized_name = self._normalize_meal_name_for_dedupe(name)
+            if normalized_name in used_names:
+                replacement = self._pick_meal_candidate(
+                    meal.type,
+                    None,
+                    (meal_candidates_by_type or {}).get(str(meal.type).lower(), []),
+                    excluded_names=used_names,
+                )
+                if replacement is not None:
+                    candidate = replacement
+                    name = replacement.name
+                else:
+                    name = fallback.name
+                    candidate = None
+                    meal = meal.model_copy(update={"address": None, "location": None})
 
             description = (meal.description or "").strip()
             if not description or self._is_generic_meal_description(description):
@@ -717,6 +826,7 @@ class PlanningAgent:
                     }
                 )
             )
+            used_names.add(self._normalize_meal_name_for_dedupe(name))
 
         return self._sort_meals_by_type(enriched)
 

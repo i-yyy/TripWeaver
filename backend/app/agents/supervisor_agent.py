@@ -11,6 +11,7 @@ from ..models.agent_schemas import (
     AgentExecutionStatus,
     AttractionAgentInput,
     HotelAgentInput,
+    MealAgentInput,
     PlanningAgentInput,
     SupervisorAgentInput,
     SupervisorAgentOutput,
@@ -19,6 +20,7 @@ from ..models.agent_schemas import (
 from ..services.skill_service import SkillService, get_skill_service
 from .attraction_agent import AttractionAgent
 from .hotel_agent import HotelAgent
+from .meal_agent import MealAgent
 from .planning_agent import PlanningAgent
 from .weather_agent import WeatherAgent
 
@@ -31,12 +33,14 @@ class SupervisorAgent:
         attraction_agent: AttractionAgent | None = None,
         weather_agent: WeatherAgent | None = None,
         hotel_agent: HotelAgent | None = None,
+        meal_agent: MealAgent | None = None,
         planning_agent: PlanningAgent | None = None,
         skill_service: SkillService | None = None,
     ) -> None:
         self.attraction_agent = attraction_agent or AttractionAgent()
         self.weather_agent = weather_agent or WeatherAgent()
         self.hotel_agent = hotel_agent or HotelAgent()
+        self.meal_agent = meal_agent or MealAgent()
         self.planning_agent = planning_agent or PlanningAgent()
         self.skill_service = skill_service or get_skill_service()
         self.tools: List[str] = []
@@ -74,7 +78,7 @@ class SupervisorAgent:
         )
         fetch_elapsed = perf_counter() - fetch_started_at
         logger.info(
-            "⏱️ SupervisorAgent fetch completed city=%s elapsed=%.2fs attractions=%s hotels=%s weather=%s",
+            "SupervisorAgent fetch completed city=%s elapsed=%.2fs attractions=%s hotels=%s weather=%s",
             request.city,
             fetch_elapsed,
             len(attraction_result.attractions),
@@ -96,12 +100,30 @@ class SupervisorAgent:
         )
         final_skills = self.skill_service.finalize_skills(payload.skills, dynamic_skills)
         logger.info(
-            "⏱️ SupervisorAgent skills completed city=%s elapsed=%.2fs static=%s dynamic=%s final=%s",
+            "SupervisorAgent skills completed city=%s elapsed=%.2fs static=%s dynamic=%s final=%s",
             request.city,
             perf_counter() - skills_started_at,
             len(payload.skills),
             len(dynamic_skills),
             len(final_skills),
+        )
+
+        meal_started_at = perf_counter()
+        meal_result = await self.meal_agent.execute(
+            MealAgentInput(
+                request=request,
+                attractions=attraction_result.attractions,
+                hotels=hotel_result.hotels,
+                skills=final_skills,
+            )
+        )
+        warnings.extend(meal_result.status.warnings)
+        logger.info(
+            "SupervisorAgent meal completed city=%s elapsed=%.2fs days=%s warnings=%s",
+            request.city,
+            perf_counter() - meal_started_at,
+            len(meal_result.meal_candidates_by_day),
+            len(meal_result.status.warnings),
         )
 
         planning_started_at = perf_counter()
@@ -116,11 +138,12 @@ class SupervisorAgent:
                 attraction_result=attraction_result,
                 weather_result=weather_result,
                 hotel_result=hotel_result,
+                meal_result=meal_result,
                 supervisor_warnings=warnings,
             )
         )
         logger.info(
-            "⏱️ SupervisorAgent planning completed city=%s elapsed=%.2fs days=%s warnings=%s",
+            "SupervisorAgent planning completed city=%s elapsed=%.2fs days=%s warnings=%s",
             request.city,
             perf_counter() - planning_started_at,
             len(planning_result.trip_plan.days),
@@ -135,6 +158,7 @@ class SupervisorAgent:
                     attraction_result.status.degraded,
                     weather_result.status.degraded,
                     hotel_result.status.degraded,
+                    meal_result.status.degraded,
                     planning_result.status.degraded,
                 ]
             ),
@@ -143,12 +167,13 @@ class SupervisorAgent:
         )
 
         logger.info(
-            "⏱️ SupervisorAgent finished city=%s degraded=%s attractions=%s hotels=%s weather=%s total_elapsed=%.2fs",
+            "SupervisorAgent finished city=%s degraded=%s attractions=%s hotels=%s weather=%s meals=%s total_elapsed=%.2fs",
             request.city,
             status.degraded,
             len(attraction_result.attractions),
             len(hotel_result.hotels),
             len(weather_result.weather_info),
+            len(meal_result.meal_candidates_by_day),
             perf_counter() - started_at,
         )
         return SupervisorAgentOutput(
@@ -156,5 +181,6 @@ class SupervisorAgent:
             attraction_result=attraction_result,
             weather_result=weather_result,
             hotel_result=hotel_result,
+            meal_result=meal_result,
             planning_result=planning_result,
         )

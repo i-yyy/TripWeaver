@@ -23,6 +23,7 @@ class MultiAgentTripPlanner:
         self.attraction_agent = self.supervisor_agent.attraction_agent
         self.weather_agent = self.supervisor_agent.weather_agent
         self.hotel_agent = self.supervisor_agent.hotel_agent
+        self.meal_agent = self.supervisor_agent.meal_agent
         self.planning_agent = self.supervisor_agent.planning_agent
 
     async def plan_trip(

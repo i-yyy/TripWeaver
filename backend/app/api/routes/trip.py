@@ -154,6 +154,7 @@ async def health_check() -> dict:
             "attraction_tools": _tool_count(planner.attraction_agent),
             "weather_tools": _tool_count(planner.weather_agent),
             "hotel_tools": _tool_count(planner.hotel_agent),
+            "meal_tools": _tool_count(planner.meal_agent),
             "planning_tools": _tool_count(planner.planning_agent),
         }
     except Exception as exc:

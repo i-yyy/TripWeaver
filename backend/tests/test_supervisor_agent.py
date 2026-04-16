@@ -8,6 +8,7 @@ from app.models.agent_schemas import (
     AgentExecutionStatus,
     AttractionAgentOutput,
     HotelAgentOutput,
+    MealAgentOutput,
     PlanningAgentInput,
     SupervisorAgentInput,
     WeatherAgentOutput,
@@ -86,6 +87,17 @@ class DegradedHotelAgent:
         return ["fake-hotel"]
 
 
+class StaticMealAgent:
+    async def execute(self, payload):
+        return MealAgentOutput(
+            status=AgentExecutionStatus(success=True, degraded=False),
+            meal_candidates_by_day={0: {}, 1: {}},
+        )
+
+    def list_tools(self):
+        return ["fake-meal"]
+
+
 class RaisingPlannerRunner:
     def run(self, prompt):
         raise RuntimeError("LLM unavailable")
@@ -117,6 +129,7 @@ class SupervisorAgentTest(unittest.IsolatedAsyncioTestCase):
             attraction_agent=StaticAttractionAgent(),
             weather_agent=StaticWeatherAgent(),
             hotel_agent=DegradedHotelAgent(),
+            meal_agent=StaticMealAgent(),
             planning_agent=PlanningAgent(planner_runner=RaisingPlannerRunner()),
         )
 

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from .schemas import Attraction, Hotel, RecommendationReason, TripPlan, TripRequest, WeatherInfo
+from .schemas import Attraction, Hotel, MealCandidate, RecommendationReason, TripPlan, TripRequest, WeatherInfo
 from .skill_schemas import SelectedSkill
 
 
@@ -64,6 +64,18 @@ class HotelAgentOutput(BaseModel):
     hotels: List[Hotel] = Field(default_factory=list)
 
 
+class MealAgentInput(BaseModel):
+    request: TripRequest
+    attractions: List[Attraction] = Field(default_factory=list)
+    hotels: List[Hotel] = Field(default_factory=list)
+    skills: List[SelectedSkill] = Field(default_factory=list)
+
+
+class MealAgentOutput(BaseModel):
+    status: AgentExecutionStatus = Field(default_factory=AgentExecutionStatus)
+    meal_candidates_by_day: Dict[int, Dict[str, List[MealCandidate]]] = Field(default_factory=dict)
+
+
 class PlanningAgentInput(BaseModel):
     request: TripRequest
     profile_context: str = ""
@@ -74,6 +86,7 @@ class PlanningAgentInput(BaseModel):
     attraction_result: AttractionAgentOutput
     weather_result: WeatherAgentOutput
     hotel_result: HotelAgentOutput
+    meal_result: MealAgentOutput = Field(default_factory=MealAgentOutput)
     supervisor_warnings: List[str] = Field(default_factory=list)
 
 
@@ -88,4 +101,5 @@ class SupervisorAgentOutput(BaseModel):
     attraction_result: AttractionAgentOutput
     weather_result: WeatherAgentOutput
     hotel_result: HotelAgentOutput
+    meal_result: MealAgentOutput
     planning_result: PlanningAgentOutput

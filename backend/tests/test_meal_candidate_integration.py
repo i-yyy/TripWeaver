@@ -180,6 +180,41 @@ class MealCandidateIntegrationTest(unittest.TestCase):
         enriched = planner._enrich_meals(generic_meals, request, candidates_by_day[0])
         self.assertEqual(enriched[0].name, '弄堂生煎铺')
         self.assertIn('上海黄浦区', enriched[0].description or '')
+        self.assertIn('可考虑点', enriched[0].description or '')
+        self.assertNotIn('方向的候选店', enriched[0].description or '')
+
+    def test_daily_meals_do_not_repeat_same_store(self) -> None:
+        request = self._build_request()
+        repeated = MealCandidate(
+            meal_type='lunch',
+            name='同名餐馆',
+            poi_id='same-poi',
+            address='上海静安区',
+            location=Location(longitude=121.47, latitude=31.23),
+            category='餐饮服务;中餐厅;中餐厅',
+            estimated_cost=40,
+            source_query='静安寺 附近 简餐',
+        )
+        candidates_by_day = {
+            0: {
+                'breakfast': [repeated],
+                'lunch': [repeated],
+                'dinner': [repeated],
+            }
+        }
+        planner = PlanningAgent(
+            planner_runner=RaisingPlannerRunner(),
+            meal_candidate_service=FakeMealCandidateService(candidates_by_day),
+        )
+        meals = [
+            Meal(type='breakfast', name='早餐', description='', estimated_cost=0),
+            Meal(type='lunch', name='午餐', description='', estimated_cost=0),
+            Meal(type='dinner', name='晚餐', description='', estimated_cost=0),
+        ]
+
+        enriched = planner._enrich_meals(meals, request, candidates_by_day[0])
+        names = [item.name for item in enriched]
+        self.assertEqual(len(set(names)), 3)
 
 
 if __name__ == '__main__':
