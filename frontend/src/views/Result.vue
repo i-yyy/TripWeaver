@@ -145,13 +145,16 @@
                 <div class="section-heading compact-heading">
                   <h3>🏨 酒店推荐</h3>
                 </div>
-                <div class="entity-card hotel-compact hotel-compact--panel" :class="{ 'hotel-compact--no-image': !day.hotel.map_image_url }">
-                  <img
-                    v-if="day.hotel.map_image_url"
-                    class="entity-image hotel-compact__image"
-                    :src="day.hotel.map_image_url"
-                    :alt="`${day.hotel.name}地图`"
-                  />
+                <div class="entity-card hotel-compact hotel-compact--panel">
+                  <div class="hotel-compact__map">
+                    <DayRouteMap
+                      class="hotel-location-map"
+                      :route="buildHotelLocationRoute(day)"
+                      :loading="false"
+                      :error="null"
+                      :fallback-static-map-url="day.hotel.map_image_url || null"
+                    />
+                  </div>
                   <div class="hotel-compact__content">
                     <strong class="hotel-compact__title">{{ day.hotel.name }}</strong>
                     <div class="hotel-meta-grid">
@@ -1096,6 +1099,30 @@ const buildLocalRouteMarkers = (day: DayPlan): DayRouteMarker[] =>
       location: location!,
       image_url: resolveAttractionImage(item),
     }))
+
+const buildHotelLocationRoute = (day: DayPlan): DayRouteInfo | null => {
+  if (!day.hotel) return null
+  const city = tripPlan.value?.city || ''
+  const location = getSafeRouteLocation(day.hotel.location, city)
+  if (!location) return null
+  const marker: DayRouteMarker = {
+    label: 'H',
+    title: day.hotel.name || '酒店',
+    kind: 'hotel',
+    address: day.hotel.address || '',
+    location,
+    image_url: null,
+  }
+  return {
+    route_type: 'walking',
+    summary: `酒店位置：${marker.title}`,
+    distance: 0,
+    duration: 0,
+    markers: [marker],
+    segments: [],
+    fallback_static_map_url: day.hotel.map_image_url || null,
+  }
+}
 
 const buildStraightSegments = (markers: DayRouteMarker[], routeType: DayRoutePayload['route_type']): DayRouteSegment[] =>
   markers.slice(0, -1).map((marker, index) => ({
@@ -2360,9 +2387,8 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
   border: 1px solid rgba(214, 228, 244, 0.8);
 }
 
-.hotel-compact__image {
-  height: 220px;
-  min-height: 220px;
+.hotel-compact__map {
+  width: 100%;
 }
 
 .hotel-compact__content {
@@ -2403,14 +2429,17 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
   white-space: normal;
 }
 
-.hotel-compact--no-image {
-  grid-template-columns: 1fr;
-}
-
 .hotel-compact__title {
   color: #17324f;
   font-size: 22px;
   font-weight: 800;
+}
+
+:deep(.hotel-location-map .day-route-map__stage),
+:deep(.hotel-location-map .day-route-map__canvas),
+:deep(.hotel-location-map .day-route-map__placeholder) {
+  min-height: 260px;
+  border-radius: 16px;
 }
 
 .hotel-meta-grid {
@@ -2704,8 +2733,9 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
     grid-template-columns: 1fr;
   }
 
-  .hotel-compact__image {
-    height: 220px;
+  :deep(.hotel-location-map .day-route-map__stage),
+  :deep(.hotel-location-map .day-route-map__canvas),
+  :deep(.hotel-location-map .day-route-map__placeholder) {
     min-height: 220px;
   }
 
