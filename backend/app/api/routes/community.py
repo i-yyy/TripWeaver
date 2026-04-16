@@ -182,6 +182,27 @@ async def get_my_community_profile(
         raise HTTPException(status_code=500, detail=f"Failed to fetch community profile: {exc}") from exc
 
 
+@router.get(
+    "/profile/{profile_user_id}",
+    response_model=CommunityProfileHomeResponse,
+    summary="Get one community author's public homepage",
+)
+async def get_community_profile(
+    profile_user_id: str,
+    limit: int = Query(default=60, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+) -> CommunityProfileHomeResponse:
+    try:
+        data = get_community_service().get_profile_home(current_user.id, profile_user_id, limit=limit)
+        if data is None:
+            raise HTTPException(status_code=404, detail="Community profile not found")
+        return CommunityProfileHomeResponse(success=True, message="Community profile fetched", data=data)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch community profile: {exc}") from exc
+
+
 @router.post(
     "/posts",
     response_model=CommunityPostResponse,

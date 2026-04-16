@@ -10,7 +10,7 @@
                 <span class="account-text">已登录账号：{{ authState.user?.nickname || authState.user?.email || '旅行者' }}</span>
                 <span v-if="isDeveloperUser" class="developer-badge">开发者</span>
               </div>
-              <a-button type="text" :class="navButtonClass('/community')" @click="goCommunity">社区交流</a-button>
+              <a-button type="text" :class="navButtonClass('/community')" @click="goCommunity">💬 社区交流</a-button>
               <a-button type="text" :class="navButtonClass('/planner')" @click="goPlanner">🧭 旅行规划</a-button>
               <a-button type="text" :class="navButtonClass('/tracks')" @click="goTracks">🗺️ 旅行轨迹</a-button>
               <a-button type="text" :class="navButtonClass('/collab')" @click="goCollab">🤝 协同行程</a-button>
@@ -22,7 +22,7 @@
               >
                 🧪 RAG评测
               </a-button>
-              <a-button type="text" :class="navButtonClass('/profile')" @click="goProfile">👤 个人设置</a-button>
+              <a-button type="text" :class="navButtonClass('/profile')" @click="goProfile">👤 个人主页</a-button>
               <a-button @click="logout">🚪 退出登录</a-button>
             </template>
             <template v-else>

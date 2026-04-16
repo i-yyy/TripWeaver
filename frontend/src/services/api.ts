@@ -290,6 +290,17 @@ export async function getMyCommunityProfile(limit = 60): Promise<CommunityProfil
   }
 }
 
+export async function getCommunityProfile(userId: string, limit = 60): Promise<CommunityProfileHomeResponse> {
+  try {
+    const response = await apiClient.get<CommunityProfileHomeResponse>(`/api/community/profile/${userId}`, {
+      params: { limit },
+    })
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '获取作者主页失败')
+  }
+}
+
 export async function publishCommunityPost(payload: {
   content: string
   image_urls: string[]
