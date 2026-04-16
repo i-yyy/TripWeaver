@@ -2,10 +2,25 @@
   <div class="brand-page planner-page">
     <div class="brand-shell split-layout">
       <section class="glass-panel planner-main-panel">
-        <div class="section-heading planner-heading">
-          <span class="page-kicker">🧭 旅行规划</span>
-          <h1 class="page-title planner-title">开始一趟新的旅行规划</h1>
-          <p class="page-subtitle">先告诉我们目的地、时间和偏好，剩下的交给系统来整理</p>
+        <div class="planner-hero">
+          <div class="section-heading planner-heading">
+            <span class="page-kicker">🧭 旅行规划</span>
+            <h1 class="page-title planner-title">
+              <span class="planner-title__lead">开始编织</span>
+              <span class="planner-title__focus">一趟独属于你的旅行</span>
+            </h1>
+            <p class="page-subtitle">把想去的城市、想看的风景和想停留的节奏交给我们，系统会替你把旅途慢慢织成一张有画面的路线图</p>
+          </div>
+
+          <div class="planner-hero-card" :style="{ backgroundImage: `url(${heroPhoto})` }">
+            <div class="planner-hero-card__overlay"></div>
+            <div class="planner-hero-card__content">
+              <div class="planner-hero-card__layout">
+                <span class="planner-hero-card__eyebrow">旅途小笺</span>
+                <strong>把想遇见的花影、想慢慢逛的街和顺路的小风景记下来，系统会替你排成一段轻盈又好拍的旅程。</strong>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-if="loading" class="planner-progress planner-progress--floating">
@@ -25,52 +40,69 @@
               </div>
             </div>
 
-            <a-row :gutter="16">
-              <a-col :xs="24" :md="8">
-                <a-form-item label="📍 目的地城市" required>
-                  <a-input v-model:value="formData.city" placeholder="例如：北京、上海、杭州" />
-                </a-form-item>
-              </a-col>
-              <a-col :xs="24" :md="8">
-                <a-form-item label="📅 开始日期" required>
-                  <a-date-picker v-model:value="formData.start_date" style="width: 100%" />
-                </a-form-item>
-              </a-col>
-              <a-col :xs="24" :md="8">
-                <a-form-item label="🗓️ 结束日期" required>
-                  <a-date-picker v-model:value="formData.end_date" style="width: 100%" />
-                </a-form-item>
-              </a-col>
-            </a-row>
+            <div class="planner-core-panel" :style="{ '--planner-core-photo': `url(${corePanelPhoto})` }">
+              <div class="planner-core-panel__summary">
+                <article class="planner-core-panel__note">
+                  <span>主线起笔</span>
+                  <strong>{{ formData.city.trim() || '先写下想去的城市' }}</strong>
+                  <p>把日期定下来，节奏和天气判断会更稳。</p>
+                </article>
+                <article class="planner-core-panel__note">
+                  <span>行程骨架</span>
+                  <strong>{{ formData.travel_days }} 天 · {{ formData.budget_level ? budgetOptions.find((item) => item.value === formData.budget_level)?.label : '预算待定' }}</strong>
+                  <p>短途行程建议抓主线，把节奏做得更轻快。</p>
+                </article>
+              </div>
 
-            <a-row :gutter="16">
-              <a-col :xs="24" :md="6">
-                <a-form-item label="⏳ 旅行天数">
-                  <a-input-number :value="formData.travel_days" :min="1" :max="30" disabled />
-                </a-form-item>
-              </a-col>
-              <a-col :xs="24" :md="6">
-                <a-form-item label="🚇 交通方式">
-                  <a-select v-model:value="formData.transportation">
-                    <a-select-option v-for="item in transportOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
-                  </a-select>
-                </a-form-item>
-              </a-col>
-              <a-col :xs="24" :md="6">
-                <a-form-item label="🛏️ 住宿偏好">
-                  <a-select v-model:value="formData.accommodation">
-                    <a-select-option v-for="item in accommodationOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
-                  </a-select>
-                </a-form-item>
-              </a-col>
-              <a-col :xs="24" :md="6">
-                <a-form-item label="💰 预算等级">
-                  <a-select v-model:value="formData.budget_level" allow-clear placeholder="请选择预算等级">
-                    <a-select-option v-for="item in budgetOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
-                  </a-select>
-                </a-form-item>
-              </a-col>
-            </a-row>
+              <div class="planner-core-panel__fields">
+                <a-row :gutter="16">
+                  <a-col :xs="24" :md="8">
+                    <a-form-item label="📍 目的地城市" required>
+                      <a-input v-model:value="formData.city" placeholder="例如：北京、上海、杭州" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <a-form-item label="📅 开始日期" required>
+                      <a-date-picker v-model:value="formData.start_date" style="width: 100%" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :xs="24" :md="8">
+                    <a-form-item label="🗓️ 结束日期" required>
+                      <a-date-picker v-model:value="formData.end_date" style="width: 100%" />
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+
+                <a-row :gutter="16">
+                  <a-col :xs="24" :md="6">
+                    <a-form-item label="⏳ 旅行天数">
+                      <a-input-number :value="formData.travel_days" :min="1" :max="30" disabled />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :xs="24" :md="6">
+                    <a-form-item label="🚇 交通方式">
+                      <a-select v-model:value="formData.transportation">
+                        <a-select-option v-for="item in transportOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
+                      </a-select>
+                    </a-form-item>
+                  </a-col>
+                  <a-col :xs="24" :md="6">
+                    <a-form-item label="🛏️ 住宿偏好">
+                      <a-select v-model:value="formData.accommodation">
+                        <a-select-option v-for="item in accommodationOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
+                      </a-select>
+                    </a-form-item>
+                  </a-col>
+                  <a-col :xs="24" :md="6">
+                    <a-form-item label="💰 预算等级">
+                      <a-select v-model:value="formData.budget_level" allow-clear placeholder="请选择预算等级">
+                        <a-select-option v-for="item in budgetOptions" :key="item.value" :value="item.value">{{ item.label }}</a-select-option>
+                      </a-select>
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+              </div>
+            </div>
           </section>
 
           <section class="planner-form-section">
@@ -81,29 +113,40 @@
               </div>
             </div>
 
-            <a-form-item label=" 兴趣偏好">
-              <a-checkbox-group v-model:value="formData.preferences">
-                <a-checkbox v-for="item in preferenceOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
-              </a-checkbox-group>
-            </a-form-item>
+            <div
+              class="planner-preference-panel"
+              :style="{ '--planner-preference-photo': `url(${preferencePanelPhoto})` }"
+            >
+              <div class="planner-preference-panel__layout">
+                <div class="planner-preference-panel__content">
+                  <a-form-item label=" 兴趣偏好" class="planner-preference-panel__interest">
+                    <a-checkbox-group v-model:value="formData.preferences">
+                      <a-checkbox v-for="item in preferenceOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
+                    </a-checkbox-group>
+                  </a-form-item>
 
-            <a-form-item label=" 旅行风格">
-              <a-checkbox-group v-model:value="formData.travel_style">
-                <a-checkbox v-for="item in travelStyleOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
-              </a-checkbox-group>
-            </a-form-item>
+                  <a-form-item label=" 旅行风格">
+                    <a-checkbox-group v-model:value="formData.travel_style">
+                      <a-checkbox v-for="item in travelStyleOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
+                    </a-checkbox-group>
+                  </a-form-item>
 
-            <a-form-item label=" 同行人群">
-              <a-checkbox-group v-model:value="formData.companions">
-                <a-checkbox v-for="item in companionOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
-              </a-checkbox-group>
-            </a-form-item>
+                  <a-form-item label=" 同行人群">
+                    <a-checkbox-group v-model:value="formData.companions">
+                      <a-checkbox v-for="item in companionOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
+                    </a-checkbox-group>
+                  </a-form-item>
 
-            <a-form-item label=" 行动需求">
-              <a-checkbox-group v-model:value="formData.mobility_needs">
-                <a-checkbox v-for="item in mobilityOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
-              </a-checkbox-group>
-            </a-form-item>
+                  <a-form-item label=" 行动需求">
+                    <a-checkbox-group v-model:value="formData.mobility_needs">
+                      <a-checkbox v-for="item in mobilityOptions" :key="item.value" :value="item.value">{{ item.label }}</a-checkbox>
+                    </a-checkbox-group>
+                  </a-form-item>
+                </div>
+
+                <div class="planner-preference-panel__art" aria-hidden="true"></div>
+              </div>
+            </div>
           </section>
 
           <section class="planner-form-section planner-form-section--compact">
@@ -115,11 +158,11 @@
             </div>
 
             <a-form-item label="📝 补充要求">
-              <a-textarea
-                v-model:value="formData.free_text_input"
-                :rows="4"
-                placeholder="例如：希望雨天也有备选方案，不要安排得太赶，想多一点城市漫游"
-              />
+                <a-textarea
+                  v-model:value="formData.free_text_input"
+                  :rows="4"
+                  placeholder="例如：希望雨天也有备选方案，不要安排得太赶，想多一点城市漫游"
+                />
             </a-form-item>
 
             <a-form-item class="planner-submit">
@@ -182,6 +225,9 @@ import { message } from 'ant-design-vue'
 import type { Dayjs } from 'dayjs'
 
 import { generateTripPlan } from '@/services/api'
+import heroPhoto from '@/assets/season/roses-field.jpg'
+import corePanelPhoto from '@/assets/season/tree-flower.jpg'
+import preferencePanelPhoto from '@/assets/season/garden-night.jpg'
 import type { TripFormData } from '@/types'
 import { useAuthState } from '@/utils/auth'
 
@@ -189,7 +235,6 @@ const router = useRouter()
 const authState = useAuthState()
 const loading = ref(false)
 const loadingStatus = ref('等待开始')
-
 const transportOptions = [
   { value: 'Public Transit', label: '公共交通' },
   { value: 'Drive', label: '自驾' },
@@ -307,24 +352,29 @@ const smartSuggestionCards = computed(() => {
       : {
           tag: '起点',
           title: '先确定城市，建议会更快聚焦',
+          text: '补上目的地后，系统能更准确地判断片区分布、交通方式和住宿落点。',
         },
     formData.travel_days >= 4
       ? {
           tag: '节奏',
           title: `这次有 ${formData.travel_days} 天，适合留白一点`,
+          text: '可以把每天的点位放松一些，留出散步、吃饭和临时起意的小停留。',
         }
       : {
           tag: '节奏',
           title: '短途行程更适合抓主线玩法',
+          text: '优先保留最想看的几处核心点，整体路线会更轻快，也更不容易赶。',
         },
     pickedPreference
       ? {
           tag: '偏好',
           title: `这次可以重点围绕“${preferenceLabel}”展开`,
+          text: '系统会把相关景点和体验优先往前排，让整趟行程的风格更统一。',
         }
       : {
           tag: '偏好',
           title: '补一点偏好，推荐会更贴近你',
+          text: '哪怕只选一个兴趣方向，推荐结果也会比默认方案更有个人节奏。',
         },
     
   ]
@@ -466,8 +516,89 @@ const handleSubmit = async () => {
   padding: 28px;
 }
 
-.planner-heading {
+.planner-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(420px, 0.94fr);
+  gap: 20px;
+  align-items: center;
   margin-bottom: 22px;
+}
+
+.planner-heading {
+  margin-bottom: 0;
+}
+
+.planner-hero-card {
+  position: relative;
+  padding: 22px 24px;
+  border-radius: 28px;
+  min-height: 280px;
+  display: flex;
+  align-items: flex-end;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  color: #183654;
+  box-shadow: 0 24px 42px rgba(67, 112, 166, 0.22);
+  overflow: hidden;
+}
+
+.planner-hero-card__overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.88) 20%, rgba(255, 255, 255, 0.62) 42%, rgba(255, 255, 255, 0.2) 72%, rgba(255, 255, 255, 0.06) 100%),
+    linear-gradient(180deg, rgba(18, 46, 79, 0.08), rgba(18, 46, 79, 0.18));
+}
+
+.planner-hero-card__content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+}
+
+.planner-hero-card__layout {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+  padding-left: 10px;
+}
+
+.planner-hero-card__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  min-height: 158px;
+  padding: 12px 8px;
+  color: #8f5c2f;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-family: "STKaiti", "KaiTi", "Kaiti SC", "FZShuTi", serif;
+  text-shadow: 0 4px 12px rgba(255, 255, 255, 0.24);
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.08));
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.38),
+    0 12px 24px rgba(112, 144, 184, 0.12);
+}
+
+.planner-hero-card strong {
+  display: block;
+  font-size: 24px;
+  line-height: 1.52;
+  max-width: 16em;
+  font-family: "STKaiti", "KaiTi", "Kaiti SC", "FZShuTi", serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-shadow: 0 4px 12px rgba(255, 255, 255, 0.24);
+  padding-top: 22px;
+  padding-left: 6px;
 }
 
 .planner-progress {
@@ -522,6 +653,27 @@ const handleSubmit = async () => {
 
 .planner-title {
   font-size: clamp(34px, 4.2vw, 54px);
+  line-height: 1.04;
+}
+
+.planner-title__lead,
+.planner-title__focus {
+  display: inline-block;
+}
+
+.planner-title__lead {
+  margin-right: 0.18em;
+  font-family: "STKaiti", "KaiTi", "Kaiti SC", "FZShuTi", serif;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #244a73;
+  text-shadow: 0 6px 22px rgba(101, 143, 190, 0.12);
+}
+
+.planner-title__focus {
+  font-family: "STKaiti", "KaiTi", "Kaiti SC", "DFKai-SB", serif;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .planner-form-section {
@@ -535,8 +687,193 @@ const handleSubmit = async () => {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.64), rgba(245, 249, 255, 0.5));
 }
 
+.planner-preference-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin-top: 18px;
+  padding: 22px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(150, 203, 244, 0.14), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.70), rgba(243, 248, 255, 0.64));
+  border: 1px solid rgba(201, 221, 244, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.88),
+    0 18px 32px rgba(112, 154, 208, 0.08);
+}
+
+.planner-preference-panel__layout {
+  position: relative;
+  min-height: 100%;
+}
+
+.planner-preference-panel__content {
+  display: grid;
+  padding-right: 12px;
+  position: relative;
+  z-index: 2;
+}
+
+.planner-preference-panel__art {
+  position: absolute;
+  inset: -22px;
+  border-radius: inherit;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 1;
+  background-image: var(--planner-preference-photo);
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: auto 102%;
+  opacity: 0.82;
+  filter: saturate(0.92) brightness(1.02);
+}
+
+.planner-preference-panel__art::before,
+.planner-preference-panel__art::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.planner-preference-panel__art::before {
+  background-image: var(--planner-preference-photo);
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: auto 104%;
+  opacity: 0.42;
+  filter: blur(18px) saturate(0.88) brightness(1.05);
+  transform: scale(1.03);
+}
+
+.planner-preference-panel__art::after {
+  background:
+    linear-gradient(to right, rgba(244, 248, 255, 0.99) 0%, rgba(244, 248, 255, 0.98) 34%, rgba(244, 248, 255, 0.94) 52%, rgba(246, 249, 255, 0.78) 66%, rgba(248, 251, 255, 0.52) 79%, rgba(250, 252, 255, 0.24) 91%, rgba(255, 255, 255, 0.1) 100%),
+    linear-gradient(to top, rgba(242, 247, 255, 0.58) 0%, rgba(247, 250, 255, 0.18) 28%, rgba(255, 255, 255, 0) 54%),
+    radial-gradient(circle at 84% 52%, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 24%, rgba(255, 255, 255, 0) 54%),
+    radial-gradient(circle at 56% 50%, rgba(245, 249, 255, 0.34) 0%, rgba(245, 249, 255, 0.18) 18%, rgba(245, 249, 255, 0.06) 34%, rgba(255, 255, 255, 0) 54%);
+}
+
+.planner-preference-panel__interest {
+  position: relative;
+  z-index: 3;
+}
+
+:deep(.planner-preference-panel__interest .ant-checkbox-group) {
+  display: grid;
+  grid-template-columns: repeat(5, max-content);
+  justify-content: start;
+  width: calc(100% + 220px);
+  max-width: none;
+  margin-right: -220px;
+  padding-right: 220px;
+  gap: 10px 12px;
+}
+
+:deep(.planner-preference-panel__interest .ant-checkbox-wrapper) {
+  margin-inline-end: 0;
+  white-space: nowrap;
+}
+
+.planner-preference-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
 .planner-form-section--compact {
   background: rgba(241, 247, 255, 0.5);
+}
+
+.planner-core-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at top right, rgba(135, 189, 244, 0.16), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(240, 247, 255, 0.72));
+  border: 1px solid rgba(191, 215, 242, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 16px 30px rgba(119, 159, 208, 0.1);
+}
+
+.planner-core-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: var(--planner-core-photo);
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 500px auto;
+  opacity: 0.48;
+  filter: saturate(1) brightness(1) blur(0.1px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.planner-core-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at left bottom, rgba(255, 255, 255, 0.01) 0%, rgba(255, 255, 255, 0.06) 12%, rgba(255, 255, 255, 0.22) 24%, rgba(255, 255, 255, 0.58) 40%, rgba(255, 255, 255, 0.90) 62%),
+    linear-gradient(to top right, rgba(255, 255, 255, 0.08) 0%, rgba(247, 251, 255, 0.24) 16%, rgba(242, 248, 255, 0.58) 38%, rgba(240, 247, 255, 0.88) 68%, rgba(240, 247, 255, 0.97) 100%),
+    radial-gradient(circle at 20% 86%, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.34) 24%, rgba(255, 255, 255, 0.80) 48%, rgba(255, 255, 255, 0.96) 66%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.planner-core-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.planner-core-panel__summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.planner-core-panel__note {
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(213, 228, 245, 0.92);
+  box-shadow: 0 10px 20px rgba(100, 142, 193, 0.08);
+}
+
+.planner-core-panel__note span {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: #6b87a7;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.planner-core-panel__note strong {
+  display: block;
+  color: #17324f;
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+.planner-core-panel__note p {
+  margin: 8px 0 0;
+  color: #6b839d;
+  line-height: 1.72;
+}
+
+.planner-core-panel__fields {
+  padding: 4px 2px 0;
 }
 
 .planner-section-head {
@@ -587,10 +924,35 @@ const handleSubmit = async () => {
   gap: 16px;
 }
 
+.aside-stack {
+  height: 100%;
+  grid-template-rows: minmax(0, 0.94fr) minmax(0, 1.06fr);
+}
+
+.planner-side-panel--tips,
+.planner-side-panel--checklist {
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100%;
+}
+
+.planner-side-panel--checklist {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
 .planner-tip-grid,
 .planner-checklist {
   display: grid;
   gap: 14px;
+}
+
+.planner-tip-grid {
+  min-height: 100%;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+}
+
+.planner-checklist {
+  min-height: 100%;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
 }
 
 .planner-tip-card,
@@ -604,13 +966,16 @@ const handleSubmit = async () => {
 
 .planner-tip-card {
   display: grid;
-  gap: 8px;
+  align-content: start;
+  gap: 6px;
+  padding: 16px 18px;
+  min-height: 0;
 }
 
 .planner-tip-card__tag {
   display: inline-flex;
   width: fit-content;
-  padding: 6px 10px;
+  padding: 5px 10px;
   border-radius: 999px;
   background: rgba(45, 134, 231, 0.12);
   color: #2a74c8;
@@ -625,8 +990,8 @@ const handleSubmit = async () => {
 }
 
 .planner-tip-card strong {
-  font-size: 18px;
-  line-height: 1.4;
+  font-size: 17px;
+  line-height: 1.35;
 }
 
 .planner-tip-card p,
@@ -655,6 +1020,8 @@ const handleSubmit = async () => {
   grid-template-columns: 32px minmax(0, 1fr);
   gap: 12px;
   align-items: start;
+  align-content: start;
+  min-height: 0;
 }
 
 .planner-check-item--done {
@@ -710,6 +1077,28 @@ const handleSubmit = async () => {
     padding: 22px;
   }
 
+  .aside-stack {
+    height: auto;
+    grid-template-rows: none;
+  }
+
+  .planner-hero {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .planner-hero-card__layout {
+    grid-template-columns: 46px minmax(0, 1fr);
+    gap: 14px;
+    padding-left: 0;
+  }
+
+  .planner-hero-card__eyebrow {
+    width: 46px;
+    min-height: 128px;
+    font-size: 18px;
+  }
+
   .planner-progress {
     flex-direction: column;
     align-items: flex-start;
@@ -722,6 +1111,44 @@ const handleSubmit = async () => {
   .planner-section-head {
     flex-direction: column;
     gap: 10px;
+  }
+
+  .planner-side-panel--tips,
+  .planner-side-panel--checklist {
+    grid-template-rows: none;
+    min-height: 0;
+  }
+
+  .planner-tip-grid,
+  .planner-checklist {
+    min-height: 0;
+    grid-template-rows: none;
+  }
+
+  .planner-core-panel__summary {
+    grid-template-columns: 1fr;
+  }
+
+  .planner-preference-panel__layout {
+    min-height: auto;
+  }
+
+  .planner-preference-panel__content {
+    padding-right: 0;
+  }
+
+  :deep(.planner-preference-panel__interest .ant-checkbox-group) {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    margin-right: 0;
+    padding-right: 0;
+  }
+
+  .planner-preference-panel__art {
+    inset: -18px;
+    background-position: center right;
+    background-size: auto 100%;
   }
 }
 </style>

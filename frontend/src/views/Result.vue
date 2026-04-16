@@ -32,7 +32,7 @@
             </div>
             <div class="result-sidebar-nav__group">
               <button type="button" class="result-nav-button" @click="scrollToSection('result-hero')">🗓️ 行程总览</button>
-              <button v-if="tripPlan.budget" type="button" class="result-nav-button" @click="scrollToSection('result-budget')">💰 预算汇总</button>
+              <button v-if="displayBudget" type="button" class="result-nav-button" @click="scrollToSection('result-budget')">💰 预算汇总</button>
               <button type="button" class="result-nav-button" @click="scrollToSection('result-days')">📚 每日行程</button>
               <button v-if="travelWeatherInfo.length" type="button" class="result-nav-button" @click="scrollToSection('result-weather')">🌤️ 天气信息</button>
               <button
@@ -51,6 +51,7 @@
               >
                 🧩 已启用技能
               </button>
+              <button v-if="decisionScoreView" type="button" class="result-nav-button result-nav-button--accent" @click="scrollToSection('result-score')">📊 最终评分</button>
             </div>
           </aside>
 
@@ -64,7 +65,7 @@
           </div>
         </section>
 
-        <section id="result-budget" v-if="tripPlan.budget" class="glass-panel glass-panel--soft result-panel">
+        <section id="result-budget" v-if="displayBudget" class="glass-panel glass-panel--soft result-panel">
           <div class="section-heading">
             <h2>💰 预算汇总</h2>
             <p>费用为参考估算，方便你快速判断本次行程的整体花费</p>
@@ -72,23 +73,23 @@
           <div class="budget-grid">
             <div class="brand-stat">
               <span>📍 景点</span>
-              <strong>{{ currency(tripPlan.budget.total_attractions) }}</strong>
+              <strong>{{ currency(displayBudget.total_attractions) }}</strong>
             </div>
             <div class="brand-stat">
               <span>🏨 酒店</span>
-              <strong>{{ currency(tripPlan.budget.total_hotels) }}</strong>
+              <strong>{{ currency(displayBudget.total_hotels) }}</strong>
             </div>
             <div class="brand-stat">
               <span>🍽️ 餐饮</span>
-              <strong>{{ currency(tripPlan.budget.total_meals) }}</strong>
+              <strong>{{ currency(displayBudget.total_meals) }}</strong>
             </div>
             <div class="brand-stat">
               <span>🚇 交通</span>
-              <strong>{{ currency(tripPlan.budget.total_transportation) }}</strong>
+              <strong>{{ currency(displayBudget.total_transportation) }}</strong>
             </div>
             <div class="brand-stat budget-total">
               <span>🧾 总计</span>
-              <strong>{{ currency(tripPlan.budget.total) }}</strong>
+              <strong>{{ currency(displayBudget.total) }}</strong>
             </div>
           </div>
         </section>
@@ -361,6 +362,113 @@
             </div>
           </div>
         </section>
+
+        <section id="result-score" v-if="decisionScoreView" class="glass-panel glass-panel--soft result-panel result-panel--decision">
+          <div class="score-hero">
+            <div class="section-heading">
+              <h2>📊 最终方案评分</h2>
+              <p>{{ scoreLiveStatusText }}</p>
+            </div>
+            <div class="score-hero__meta">
+              <span class="score-hero__eyebrow">当前方案画像</span>
+              <strong>{{ decisionScoreView.summary }}</strong>
+              <p>{{ decisionScoreView.story || '这里会根据当前行程内容、预算、路线和执行弹性，给出这一版方案的立体判断。' }}</p>
+            </div>
+          </div>
+
+          <div class="score-overview score-overview--final">
+            <article class="score-overview-card score-overview-card--primary">
+              <span class="score-overview-card__label">当前综合分</span>
+              <strong>{{ decisionScoreView.overall }}</strong>
+              <p>当前预算 {{ currency(decisionScoreView.budget.total) }}</p>
+            </article>
+
+            <article class="score-overview-card score-overview-card--mood">
+              <span class="score-overview-card__label">当前旅行气质</span>
+              <strong>{{ scoreMood.label }}</strong>
+              <p>{{ scoreMood.description }}</p>
+            </article>
+
+            <article class="score-overview-card">
+              <span class="score-overview-card__label">路线与舒适度</span>
+              <strong>{{ decisionScoreView.estimated_distance_text }}</strong>
+              <p>{{ decisionScoreView.comfort_text }}</p>
+            </article>
+          </div>
+
+          <div class="score-badge-row" v-if="decisionScoreView.highlights.length || decisionScoreView.risks.length">
+            <span
+              v-for="item in decisionScoreView.highlights"
+              :key="item"
+              class="score-badge score-badge--good"
+            >
+              {{ item }}
+            </span>
+            <span
+              v-for="item in decisionScoreView.risks"
+              :key="item"
+              class="score-badge score-badge--risk"
+            >
+              {{ item }}
+            </span>
+          </div>
+
+          <div class="score-grid">
+            <article
+              v-for="dimension in decisionScoreView.dimensions"
+              :key="dimension.key"
+              class="score-card"
+            >
+              <div class="score-card__head">
+                <div>
+                  <span class="score-card__eyebrow">当前方案维度</span>
+                  <strong>{{ dimension.label }}</strong>
+                  <p>{{ dimension.description }}</p>
+                </div>
+                <div class="score-card__scorebox">
+                  <span class="score-card__score">{{ dimension.score }}</span>
+                  <span class="score-card__status" :class="scoreStatusClass(dimension.score)">
+                    {{ scoreStatusLabel(dimension.score) }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="score-card__meter">
+                <div class="score-card__meter-track">
+                  <div class="score-card__meter-fill" :style="{ width: `${dimension.score}%` }"></div>
+                </div>
+                <span>{{ dimension.score }}/100</span>
+              </div>
+
+              <p class="score-card__detail">{{ dimension.detail }}</p>
+              <p v-if="dimension.narrative" class="score-card__narrative">{{ dimension.narrative }}</p>
+
+              <button type="button" class="score-card__toggle" @click="toggleScoreDimension(dimension.key)">
+                {{ isScoreDimensionExpanded(dimension.key) ? '收起打分过程' : '查看这个分数怎么来的' }}
+              </button>
+
+              <div v-if="isScoreDimensionExpanded(dimension.key)" class="score-card__recipe">
+                <div class="score-card__recipe-title">分数生成过程</div>
+                <div class="score-factor-list">
+                  <article
+                    v-for="(factor, index) in dimension.factors || []"
+                    :key="`${dimension.key}-${index}-${factor.label}`"
+                    class="score-factor"
+                  >
+                    <div class="score-factor__head">
+                      <strong>{{ factor.label }}</strong>
+                      <span class="score-factor__impact" :class="scoreFactorClass(factor.impact)">
+                        {{ formatFactorImpact(factor.impact) }}
+                      </span>
+                    </div>
+                    <p>{{ factor.reason }}</p>
+                    <span v-if="factor.value" class="score-factor__value">{{ factor.value }}</span>
+                  </article>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
           </div>
         </div>
       </template>
@@ -369,15 +477,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 
 import DayRouteMap from '@/components/DayRouteMap.vue'
-import { getCommunityPostPlan, getDayRouteDetail, getTravelTrackPlan, submitFeedback } from '@/services/api'
+import {
+  evaluateTripDecisionScore,
+  getCommunityPostPlan,
+  getDayRouteDetail,
+  getTravelTrackPlan,
+  submitFeedback,
+} from '@/services/api'
 import type {
+  Budget,
   AppliedSkill,
   Attraction,
   DayPlan,
@@ -385,10 +500,11 @@ import type {
   DayRouteMarker,
   DayRoutePayload,
   DayRouteSegment,
+  DecisionScoreSnapshot,
   FeedbackPayload,
   RecommendationReason,
-  TripFormData,
   TripPlan,
+  TripScoreSummary,
 } from '@/types'
 import { useAuthState } from '@/utils/auth'
 
@@ -398,16 +514,19 @@ const authState = useAuthState()
 const isDeveloperUser = computed(() => authState.user?.is_developer === true)
 const tripPlan = ref<TripPlan | null>(null)
 const originalPlan = ref<TripPlan | null>(null)
+const decisionScore = ref<DecisionScoreSnapshot | null>(null)
+const scoreLoading = ref(false)
+const scoreError = ref('')
 const editMode = ref(false)
 const currentUserId = ref(authState.user?.id || sessionStorage.getItem('tripPlannerUserId') || '')
 const currentSessionId = ref(sessionStorage.getItem('tripPlannerSessionId') || '')
-type TripPlannerSummary = Pick<TripFormData, 'budget_level' | 'travel_style' | 'companions' | 'mobility_needs' | 'transportation' | 'free_text_input'>
-const tripPlannerSummary = ref<TripPlannerSummary | null>(null)
+const tripPlannerSummary = ref<TripScoreSummary | null>(null)
 const activeDayKeys = ref<string[]>([])
 const routeDetails = ref<Record<number, DayRouteInfo>>({})
 const routeLoading = ref<Record<number, boolean>>({})
 const routeErrors = ref<Record<number, string>>({})
 const exportingPdf = ref(false)
+const expandedScoreDimensionKeys = ref<string[]>([])
 
 const getDaySectionId = (dayIndex: number) => `result-day-${dayIndex}`
 
@@ -574,6 +693,131 @@ const profileRecommendation = computed<RecommendationReason | null>(() => {
   }
 })
 
+const buildPlanBudget = (plan: TripPlan): Budget => {
+  const totals = plan.days.reduce(
+    (acc, day) => {
+      acc.total_attractions += day.attractions.reduce((sum, item) => sum + Number(item.ticket_price || 0), 0)
+      acc.total_hotels += Number(day.hotel?.estimated_cost || 0)
+      acc.total_meals += day.meals.reduce((sum, item) => sum + Number(item.estimated_cost || 0), 0)
+      acc.total_transportation += Number(day.transportation_cost || 0)
+      return acc
+    },
+    {
+      total_attractions: 0,
+      total_hotels: 0,
+      total_meals: 0,
+      total_transportation: 0,
+    },
+  )
+
+  return {
+    ...totals,
+    total: totals.total_attractions + totals.total_hotels + totals.total_meals + totals.total_transportation,
+  }
+}
+const displayBudget = computed<Budget | null>(() => (tripPlan.value ? buildPlanBudget(tripPlan.value) : null))
+const decisionScoreView = computed(() => decisionScore.value)
+const scoreMood = computed(() => {
+  const overall = decisionScoreView.value?.overall || 0
+  if (overall >= 90) {
+    return {
+      label: '顺手发光型',
+      description: '主线清楚、转场流畅，像已经热好身就能直接出发的一版。',
+    }
+  }
+  if (overall >= 80) {
+    return {
+      label: '稳稳出发型',
+      description: '整体已经能打，少数细节再收一收，体验会更丝滑。',
+    }
+  }
+  if (overall >= 70) {
+    return {
+      label: '可玩待抛光',
+      description: '骨架不错，但个别环节还会决定你是顺着玩，还是边玩边修。',
+    }
+  }
+  return {
+    label: '继续打磨型',
+    description: '核心内容已经有了，不过还需要再把节奏、预算或路线拧紧一点。',
+  }
+})
+const scoreLiveStatusText = computed(() =>
+  scoreLoading.value
+    ? '系统正在根据你刚刚的修改重算这版方案的实时评分'
+    : scoreError.value
+    ? `评分暂未刷新：${scoreError.value}`
+    : editMode.value
+    ? '你正在编辑行程，系统现在只看这版方案本身，景点增删和顺序变化都会立刻反映到各维得分里'
+    : '以下为当前方案的各维度分数，可通过点开维度卡片来查看打分过程',
+)
+const scoreStatusLabel = (value: number) => {
+  if (value >= 85) return '状态很稳'
+  if (value >= 75) return '基本顺手'
+  if (value >= 65) return '还能再抛光'
+  return '建议再调整'
+}
+const scoreStatusClass = (value: number) => ({
+  'score-status--good': value >= 85,
+  'score-status--mid': value >= 75 && value < 85,
+  'score-status--warn': value < 75,
+})
+const formatFactorImpact = (value: number) => {
+  const rounded = Math.abs(value - Math.round(value)) < 0.05 ? Math.round(value) : Number(value).toFixed(1)
+  if (value > 0) return `+${rounded}`
+  if (value < 0) return `${rounded}`
+  return '±0'
+}
+const scoreFactorClass = (value: number) => ({
+  'score-factor__impact--positive': value > 0,
+  'score-factor__impact--negative': value < 0,
+  'score-factor__impact--neutral': value === 0,
+})
+const toggleScoreDimension = (key: string) => {
+  expandedScoreDimensionKeys.value = expandedScoreDimensionKeys.value.includes(key)
+    ? expandedScoreDimensionKeys.value.filter((item) => item !== key)
+    : [...expandedScoreDimensionKeys.value, key]
+}
+const isScoreDimensionExpanded = (key: string) => expandedScoreDimensionKeys.value.includes(key)
+
+let scoreRefreshTimer: number | null = null
+
+const refreshDecisionScore = async (options?: { silent?: boolean }) => {
+  if (!tripPlan.value) return
+  scoreLoading.value = true
+  scoreError.value = ''
+  try {
+    const response = await evaluateTripDecisionScore({
+      plan: tripPlan.value,
+      summary: tripPlannerSummary.value,
+    })
+    if (!response.data) {
+      throw new Error('评分结果为空')
+    }
+    decisionScore.value = response.data
+    if (!editMode.value) {
+      tripPlan.value.decision_score = response.data
+    }
+  } catch (error: any) {
+    scoreError.value = error.message || '评分计算失败'
+    if (!options?.silent) {
+      message.warning(scoreError.value)
+    }
+  } finally {
+    scoreLoading.value = false
+  }
+}
+
+const scheduleDecisionScoreRefresh = () => {
+  if (!editMode.value || !tripPlan.value) return
+  if (scoreRefreshTimer) {
+    clearTimeout(scoreRefreshTimer)
+  }
+  scoreRefreshTimer = window.setTimeout(() => {
+    void refreshDecisionScore({ silent: true })
+  }, 360)
+}
+
 const memoryRecommendationTotal = computed<RecommendationReason | null>(() => {
   const matched = displayRecommendationReasons.value.find((item) => item.source_type === 'memory' && isMemoryTotalReason(item))
   if (matched) return matched
@@ -708,10 +952,18 @@ const resultHeroTags = computed(() => {
   return tags.slice(0, 4)
 })
 
+watch(
+  tripPlan,
+  () => {
+    scheduleDecisionScoreRefresh()
+  },
+  { deep: true },
+)
 onMounted(async () => {
   const data = sessionStorage.getItem('tripPlan')
   if (data) {
     tripPlan.value = JSON.parse(data)
+    decisionScore.value = tripPlan.value?.decision_score || null
   }
   const summary = sessionStorage.getItem('tripPlannerSummary')
   if (summary) {
@@ -724,11 +976,15 @@ onMounted(async () => {
       const response = postId ? await getCommunityPostPlan(postId) : trackId ? await getTravelTrackPlan(trackId) : null
       if (response?.success && response.data) {
         tripPlan.value = response.data
+        decisionScore.value = response.data.decision_score || null
         sessionStorage.setItem('tripPlan', JSON.stringify(response.data))
       }
     } catch (error: any) {
       message.error(error.message || '加载旅行规划失败')
     }
+  }
+  if (tripPlan.value && !decisionScore.value) {
+    await refreshDecisionScore({ silent: true })
   }
 })
 
@@ -925,8 +1181,19 @@ const toggleEditMode = () => {
   originalPlan.value = clonePlan(tripPlan.value)
 }
 
-const saveChanges = () => {
+const saveChanges = async () => {
   if (!tripPlan.value) return
+  if (scoreRefreshTimer) {
+    clearTimeout(scoreRefreshTimer)
+    scoreRefreshTimer = null
+  }
+  if (displayBudget.value) {
+    tripPlan.value.budget = displayBudget.value
+  }
+  await refreshDecisionScore({ silent: true })
+  if (decisionScore.value) {
+    tripPlan.value.decision_score = decisionScore.value
+  }
   editMode.value = false
   sessionStorage.setItem('tripPlan', JSON.stringify(tripPlan.value))
   resetDayRoute()
@@ -936,7 +1203,13 @@ const saveChanges = () => {
 
 const cancelEdit = () => {
   if (!originalPlan.value) return
+  if (scoreRefreshTimer) {
+    clearTimeout(scoreRefreshTimer)
+    scoreRefreshTimer = null
+  }
   tripPlan.value = clonePlan(originalPlan.value)
+  decisionScore.value = tripPlan.value.decision_score || null
+  scoreError.value = ''
   editMode.value = false
   resetDayRoute()
   refreshActiveDayRoutes()
@@ -1040,18 +1313,19 @@ const exportTripPlan = async () => {
   exportingPdf.value = true
   try {
     const plan = tripPlan.value
+    const budget = displayBudget.value
     const tagHtml = resultHeroTags.value.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join('')
 
-    const budgetHtml = plan.budget
+    const budgetHtml = budget
       ? `
         <section class="section">
           <h2>预算汇总</h2>
           <div class="grid grid-5">
-            <div class="stat"><span>景点</span><strong>${escapeHtml(currency(plan.budget.total_attractions))}</strong></div>
-            <div class="stat"><span>酒店</span><strong>${escapeHtml(currency(plan.budget.total_hotels))}</strong></div>
-            <div class="stat"><span>餐饮</span><strong>${escapeHtml(currency(plan.budget.total_meals))}</strong></div>
-            <div class="stat"><span>交通</span><strong>${escapeHtml(currency(plan.budget.total_transportation))}</strong></div>
-            <div class="stat"><span>总计</span><strong>${escapeHtml(currency(plan.budget.total))}</strong></div>
+            <div class="stat"><span>景点</span><strong>${escapeHtml(currency(budget.total_attractions))}</strong></div>
+            <div class="stat"><span>酒店</span><strong>${escapeHtml(currency(budget.total_hotels))}</strong></div>
+            <div class="stat"><span>餐饮</span><strong>${escapeHtml(currency(budget.total_meals))}</strong></div>
+            <div class="stat"><span>交通</span><strong>${escapeHtml(currency(budget.total_transportation))}</strong></div>
+            <div class="stat"><span>总计</span><strong>${escapeHtml(currency(budget.total))}</strong></div>
           </div>
         </section>
       `
@@ -1440,16 +1714,24 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
   box-shadow: 0 10px 18px rgba(118, 164, 217, 0.12);
 }
 
+.result-nav-button--accent {
+  background: linear-gradient(135deg, rgba(236, 245, 255, 0.92), rgba(255, 255, 255, 0.94));
+  border-color: rgba(160, 195, 235, 0.56);
+  box-shadow: 0 12px 22px rgba(118, 164, 217, 0.16);
+}
+
 .result-nav-button--day {
   font-size: 16px;
   color: #35526d;
 }
 
 #result-hero,
+#result-score,
 #result-budget,
 #result-days,
 #result-weather,
-#result-reasons {
+#result-reasons,
+#result-skills {
   scroll-margin-top: 112px;
 }
 
@@ -1624,6 +1906,347 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
+}
+
+.score-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.result-panel--decision {
+  position: relative;
+  background:
+    radial-gradient(circle at top right, rgba(255, 193, 108, 0.16), transparent 28%),
+    radial-gradient(circle at 12% 18%, rgba(148, 215, 255, 0.18), transparent 20%),
+    rgba(248, 251, 255, 0.8);
+}
+
+.score-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.9fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.score-hero__meta {
+  padding: 20px 22px;
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(31, 91, 150, 0.96), rgba(59, 123, 189, 0.9));
+  color: #f8fbff;
+  box-shadow: 0 18px 30px rgba(83, 132, 194, 0.22);
+}
+
+.score-hero__eyebrow,
+.score-card__eyebrow {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: rgba(245, 249, 255, 0.76);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.score-card__eyebrow {
+  color: #7291b2;
+}
+
+.score-hero__meta strong {
+  display: block;
+  font-size: 28px;
+  line-height: 1.25;
+}
+
+.score-hero__meta p {
+  margin: 10px 0 0;
+  color: rgba(238, 246, 255, 0.8);
+  line-height: 1.75;
+}
+
+.score-overview-card,
+.score-card {
+  padding: 18px 20px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(206, 224, 245, 0.82);
+  box-shadow: 0 12px 24px rgba(111, 151, 204, 0.08);
+}
+
+.score-overview-card--primary {
+  background: linear-gradient(135deg, rgba(234, 244, 255, 0.96), rgba(255, 255, 255, 0.96));
+}
+
+.score-overview-card--mood {
+  background: linear-gradient(135deg, rgba(255, 245, 226, 0.96), rgba(255, 255, 255, 0.96));
+}
+
+.score-overview-card__label {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: #5f7f9e;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.score-overview-card strong {
+  display: block;
+  color: #17324f;
+  font-size: 40px;
+  line-height: 1.1;
+}
+
+.score-overview-card strong.score-delta--up,
+.score-overview-card strong.score-delta--down,
+.score-overview-card strong.score-delta--flat {
+  padding: 0;
+  background: transparent;
+}
+
+.score-overview-card p,
+.score-card__head p,
+.score-card__detail {
+  margin: 8px 0 0;
+  color: #6a819a;
+  line-height: 1.7;
+}
+
+.score-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.score-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.score-badge--good {
+  background: rgba(66, 184, 131, 0.14);
+  color: #1d7b55;
+}
+
+.score-badge--risk {
+  background: rgba(255, 173, 96, 0.16);
+  color: #9b5f19;
+}
+
+.score-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.score-card {
+  display: grid;
+  gap: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(242, 248, 255, 0.9));
+}
+
+.score-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.score-card__head strong {
+  color: #17324f;
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.score-card__scorebox {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.score-card__score {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 64px;
+  padding: 10px 14px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(45, 134, 231, 0.14), rgba(255, 255, 255, 0.92));
+  color: #2a74c8;
+  font-size: 28px;
+  font-weight: 900;
+  box-shadow: inset 0 0 0 1px rgba(172, 206, 242, 0.3);
+}
+
+.score-card__status {
+  flex-shrink: 0;
+  min-width: 84px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.score-status--good {
+  background: rgba(66, 184, 131, 0.14);
+  color: #1d7b55;
+}
+
+.score-status--mid {
+  background: rgba(170, 198, 228, 0.18);
+  color: #597da4;
+}
+
+.score-status--warn {
+  background: rgba(255, 173, 96, 0.16);
+  color: #9b5f19;
+}
+
+.score-card__meter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.score-card__meter span {
+  color: #597590;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.score-card__meter-track {
+  position: relative;
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(219, 231, 245, 0.84);
+  overflow: hidden;
+}
+
+.score-card__meter-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2d86e7, #69aef3);
+}
+
+.score-card__narrative {
+  margin: -4px 0 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(238, 245, 255, 0.88);
+  color: #35526d;
+  line-height: 1.75;
+}
+
+.score-card__toggle {
+  width: 100%;
+  border: 0;
+  border-radius: 16px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(32, 113, 207, 0.1), rgba(98, 167, 239, 0.12));
+  color: #2469b8;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.score-card__toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(84, 132, 190, 0.12);
+}
+
+.score-card__recipe {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(247, 250, 255, 0.96);
+  border: 1px solid rgba(206, 224, 245, 0.9);
+}
+
+.score-card__recipe-title {
+  color: #35526d;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.score-factor-list {
+  display: grid;
+  gap: 10px;
+}
+
+.score-factor {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid rgba(222, 233, 246, 0.9);
+}
+
+.score-factor__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.score-factor__head strong {
+  color: #183654;
+  font-size: 15px;
+}
+
+.score-factor p {
+  margin: 8px 0 0;
+  color: #66809a;
+  line-height: 1.7;
+}
+
+.score-factor__impact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 58px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.score-factor__impact--positive {
+  background: rgba(66, 184, 131, 0.14);
+  color: #1d7b55;
+}
+
+.score-factor__impact--negative {
+  background: rgba(255, 173, 96, 0.16);
+  color: #9b5f19;
+}
+
+.score-factor__impact--neutral {
+  background: rgba(170, 198, 228, 0.18);
+  color: #597da4;
+}
+
+.score-factor__value {
+  display: inline-flex;
+  margin-top: 8px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(236, 243, 251, 0.96);
+  color: #507095;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .weather-grid {
@@ -2054,6 +2677,14 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
   .result-hero,
   .result-panel {
     padding: 22px;
+  }
+
+  .score-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .score-hero {
+    grid-template-columns: 1fr;
   }
 
   .entity-card__body {
