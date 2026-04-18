@@ -283,7 +283,12 @@ const mobilityOptions = [
 ]
 
 const preferenceLabelMap = Object.fromEntries(preferenceOptions.map((item) => [item.value, item.label.replace(/^[^\u4e00-\u9fa5A-Za-z]+/, '').trim()]))
-const createSessionId = () => crypto.randomUUID()
+const createSessionId = () => {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID()
+  }
+  return `session_${Date.now()}_${Math.random().toString(16).slice(2)}`
+}
 
 type LocalTripFormData = Omit<TripFormData, 'start_date' | 'end_date' | 'dietary_restrictions'> & {
   start_date: Dayjs | null
