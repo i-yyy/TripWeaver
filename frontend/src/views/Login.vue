@@ -200,7 +200,7 @@ const handleLogin = async () => {
 .auth-form-heading h2 {
   margin: 74px 0 54px;
   color: #172033;
-  font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  font-family: "Microsoft YaHei", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
   font-size: 34px;
   font-weight: 800;
   line-height: 1.08;

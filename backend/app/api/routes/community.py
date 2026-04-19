@@ -16,6 +16,7 @@ from ...models.schemas import (
     CommunityPostCommentResponse,
     CommunityPostCreateRequest,
     CommunityPostFeedResponse,
+    CommunityPostUpdateRequest,
     CommunityProfileHomeResponse,
     CommunityPostResponse,
     TripPlanResponse,
@@ -223,6 +224,31 @@ async def create_post(
         raise HTTPException(status_code=500, detail=f"Failed to publish post: {exc}") from exc
 
 
+@router.patch(
+    "/posts/{post_id}",
+    response_model=CommunityPostResponse,
+    summary="Edit your own community moments post",
+)
+async def update_post(
+    post_id: str,
+    payload: CommunityPostUpdateRequest,
+    current_user: User = Depends(get_current_user),
+) -> CommunityPostResponse:
+    try:
+        post = get_community_service().update_post(
+            user_id=current_user.id,
+            post_id=post_id,
+            payload=payload,
+        )
+        return CommunityPostResponse(success=True, message="Post updated", data=post)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to update post: {exc}") from exc
+
+
 @router.post(
     "/posts/{post_id}/like",
     response_model=CommunityInteractionResponse,
@@ -239,6 +265,26 @@ async def toggle_post_like(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to update post like: {exc}") from exc
+
+
+@router.delete(
+    "/posts/{post_id}",
+    response_model=CommunityPostResponse,
+    summary="Delete your own community post",
+)
+async def delete_post(
+    post_id: str,
+    current_user: User = Depends(get_current_user),
+) -> CommunityPostResponse:
+    try:
+        get_community_service().delete_post(current_user.id, post_id)
+        return CommunityPostResponse(success=True, message="Post deleted", data=None)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to delete post: {exc}") from exc
 
 
 @router.post(

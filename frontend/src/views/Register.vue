@@ -184,7 +184,7 @@ const handleRegister = async () => {
 .auth-form-heading h2 {
   margin: 60px 0 34px;
   color: #172033;
-  font-family: "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
+  font-family: "Microsoft YaHei", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
   font-size: 34px;
   font-weight: 800;
   line-height: 1.08;

@@ -38,6 +38,10 @@ export interface Hotel {
   distance: string
   type: string
   estimated_cost?: number
+  photos?: string[]
+  image_url?: string
+  image_source?: string
+  image_status?: string
   map_image_url?: string
 }
 

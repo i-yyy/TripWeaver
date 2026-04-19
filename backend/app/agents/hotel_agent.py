@@ -16,12 +16,12 @@ logger = logging.getLogger(__name__)
 
 HOTEL_QUERY_MAP: Dict[str, List[str]] = {
     "budget hotel": ["经济型酒店", "连锁酒店", "酒店"],
-    "comfort hotel": ["舒适型酒店", "酒店"],
-    "luxury hotel": ["高档酒店", "五星级酒店", "酒店"],
-    "homestay": ["民宿", "酒店"],
+    "comfort hotel": ["舒适型酒店", "商务酒店", "酒店"],
+    "luxury hotel": ["高档酒店", "五星级酒店", "豪华酒店"],
+    "homestay": ["民宿", "客栈", "酒店"],
 }
 
-HOTEL_HINTS = ("酒店", "宾馆", "民宿", "客栈", "酒店式公寓", "旅舍", "住宿")
+HOTEL_HINTS = ("酒店", "宾馆", "民宿", "客栈", "酒店式公寓", "旅舍", "住宿", "公寓")
 
 
 class HotelAgent:
@@ -47,6 +47,10 @@ class HotelAgent:
                 warnings.append(warning)
 
         hotels = self._rank_and_convert(payload, collected)
+        if not hotels:
+            hotels = self._build_fallback_hotels(payload)
+            warnings.append("Using fallback hotel candidates because no structured hotel POIs were returned")
+
         status = AgentExecutionStatus(
             success=bool(hotels) or not warnings,
             degraded=bool(warnings) or not hotels,
@@ -93,7 +97,7 @@ class HotelAgent:
 
     def _rank_and_convert(self, payload: HotelAgentInput, pois: Sequence[POIInfo]) -> List[Hotel]:
         seen: Set[str] = set()
-        scored: List[tuple[float, Hotel]] = []
+        scored: List[tuple[float, POIInfo]] = []
 
         for poi in pois:
             if self._should_exclude(poi):
@@ -104,12 +108,11 @@ class HotelAgent:
                 continue
             seen.add(dedupe_key)
 
-            hotel = self._poi_to_hotel(payload, poi)
             score = self._score_poi(payload, poi)
-            scored.append((score, hotel))
+            scored.append((score, poi))
 
         scored.sort(key=lambda item: item[0], reverse=True)
-        return [item[1] for item in scored[: payload.limit]]
+        return [self._poi_to_hotel(payload, item[1]) for item in scored[: payload.limit]]
 
     def _should_exclude(self, poi: POIInfo) -> bool:
         text = f"{poi.name} {poi.type}"
@@ -145,6 +148,8 @@ class HotelAgent:
 
     def _poi_to_hotel(self, payload: HotelAgentInput, poi: POIInfo) -> Hotel:
         request = payload.request
+        photos = self._hotel_photo_urls(poi)
+        image_url = photos[0] if photos else None
         return Hotel(
             name=poi.name,
             address=poi.address,
@@ -157,7 +162,51 @@ class HotelAgent:
             distance="",
             type=poi.type,
             estimated_cost=self._estimate_cost(request),
+            photos=photos,
+            image_url=image_url,
+            image_source="amap" if image_url else None,
+            image_status="ok" if image_url else "missing",
         )
+
+    def _hotel_photo_urls(self, poi: POIInfo) -> List[str]:
+        photos = self._dedupe_photo_urls(list(poi.photos or []))
+        if photos or not poi.id:
+            return photos
+        try:
+            return self._dedupe_photo_urls(self.amap_service.get_poi_photo_urls(poi.id))
+        except Exception as exc:  # pragma: no cover - external dependency
+            logger.debug("Hotel photo lookup failed poi_id=%s error=%s", poi.id, exc)
+            return []
+
+    def _build_fallback_hotels(self, payload: HotelAgentInput) -> List[Hotel]:
+        request = payload.request
+        city = request.city.strip() or "目的地"
+        accommodation = request.accommodation.lower()
+        if "luxury" in accommodation or request.budget_level == "high":
+            label = "高端精选酒店"
+            hotel_type = "高档酒店"
+        elif "homestay" in accommodation:
+            label = "本地特色民宿"
+            hotel_type = "民宿客栈"
+        elif "budget" in accommodation or request.budget_level == "low":
+            label = "交通便利经济酒店"
+            hotel_type = "经济型酒店"
+        else:
+            label = "舒适商务酒店"
+            hotel_type = "舒适型酒店"
+
+        return [
+            Hotel(
+                name=f"{city}{label}",
+                address=f"建议选择{city}核心商圈、地铁站或主要景区之间的住宿区域",
+                location=None,
+                price_range=self._estimate_price_range(request),
+                rating="待查询",
+                distance="以实际预订平台为准",
+                type=hotel_type,
+                estimated_cost=self._estimate_cost(request),
+            )
+        ][: payload.limit]
 
     def _estimate_cost(self, request) -> int:
         accommodation = request.accommodation.lower()
@@ -199,6 +248,18 @@ class HotelAgent:
         compact_name = re.sub(r"[()（）\s]+", "", poi.name.lower())
         compact_address = re.sub(r"\s+", "", poi.address.lower())
         return f"{compact_name}:{compact_address}"
+
+    @staticmethod
+    def _dedupe_photo_urls(urls: Sequence[str]) -> List[str]:
+        normalized: List[str] = []
+        seen: Set[str] = set()
+        for url in urls:
+            text = str(url or "").strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            normalized.append(text)
+        return normalized[:6]
 
     @staticmethod
     def _contains_cjk(text: str) -> bool:

@@ -248,7 +248,7 @@
               :class="{ 'moment-card--focused': focusedPostId === post.id }"
             >
               <div class="moment-card__head">
-                <button class="moment-card__author moment-card__author-button" type="button" @click="openAuthorProfile(post.user_id)">
+                <div class="moment-card__author moment-card__author-button" role="button" tabindex="0" @click="openAuthorProfile(post.user_id)" @keyup.enter="openAuthorProfile(post.user_id)">
                   <img
                     v-if="post.author_avatar_url"
                     class="moment-card__avatar-image"
@@ -258,15 +258,24 @@
                   />
                   <div v-else class="moment-card__avatar" :style="avatarStyle(post.author_name)">{{ avatarText(post.author_name) }}</div>
                   <div class="moment-card__author-meta">
-                    <strong>{{ post.author_name }}</strong>
+                    <div class="moment-card__name-row">
+                      <strong>{{ post.author_name }}</strong>
+                      <a-button
+                        v-if="authenticated && authState.user?.id !== post.user_id"
+                        class="moment-card__follow-button"
+                        size="small"
+                        @click.stop="toggleFollow(post)"
+                      >
+                        {{ post.followed_author ? '已关注' : '+ 关注' }}
+                      </a-button>
+                    </div>
                     <p>{{ formatTime(post.created_at) }}<span v-if="post.city"> · {{ post.city }}</span></p>
                   </div>
-                </button>
+                </div>
                 <a-button
                   v-if="authenticated && authState.user?.id !== post.user_id"
+                  class="moment-card__follow-button"
                   size="small"
-                  type="primary"
-                  ghost
                   @click="toggleFollow(post)"
                 >
                   {{ post.followed_author ? '已关注' : '+ 关注' }}
@@ -311,6 +320,22 @@
 
               <div class="moment-card__actions">
                 <a-button size="small" @click="togglePostLike(post)">{{ post.liked_by_me ? '❤️ 已喜欢' : '❤️ 喜欢' }}</a-button>
+                <a-button
+                  v-if="authenticated && authState.user?.id === post.user_id"
+                  size="small"
+                  @click="openEditPost(post)"
+                >
+                  编辑
+                </a-button>
+                <a-popconfirm
+                  v-if="authenticated && authState.user?.id === post.user_id"
+                  title="确定要删除这条旅行动态吗？"
+                  ok-text="删除"
+                  cancel-text="取消"
+                  @confirm="deletePost(post)"
+                >
+                  <a-button size="small" danger :loading="deletingPostId === post.id">删除</a-button>
+                </a-popconfirm>
               </div>
 
               <div class="moment-card__comments">
@@ -364,6 +389,74 @@
           </div>
         </div>
       </section>
+
+      <a-modal
+        v-model:open="editPostModalOpen"
+        title="编辑旅行动态"
+        ok-text="保存"
+        cancel-text="取消"
+        :confirm-loading="savingEditedPost"
+        @ok="saveEditedPost"
+        @cancel="closeEditPost"
+      >
+        <div class="post-edit-modal">
+          <a-textarea
+            v-model:value="editPostDraft.content"
+            :rows="5"
+            :maxlength="600"
+            placeholder="修改这条旅行动态的文字"
+          />
+          <div class="moments-composer__grid">
+            <a-input v-model:value="editPostDraft.city" placeholder="关联城市，例如：杭州" />
+            <a-input v-model:value="editPostDraft.tagsText" placeholder="标签，用逗号分隔，例如：citywalk, 美食" />
+          </div>
+          <a-select
+            v-model:value="editPostDraft.linkedTrackId"
+            allow-clear
+            placeholder="选择要关联的行程（可选）"
+            :not-found-content="trackLoading ? '正在加载行程...' : '暂无可关联行程，请先生成旅行规划'"
+            :loading="trackLoading"
+            @change="handleEditLinkedTrackChange"
+          >
+            <a-select-option v-for="track in availableTracks" :key="track.id" :value="track.id">
+              {{ track.city }} · {{ track.start_date }} - {{ track.end_date }}
+            </a-select-option>
+          </a-select>
+          <input
+            ref="editImageInputRef"
+            class="moments-composer__file-input"
+            type="file"
+            accept="image/*"
+            multiple
+            @change="handleEditImageFiles"
+          />
+          <div v-if="editPostDraft.imageUrls.length" class="moments-composer__preview-grid">
+            <div
+              v-for="(imageUrl, index) in editPostDraft.imageUrls"
+              :key="`edit-${imageUrl}-${index}`"
+              class="moments-composer__preview"
+            >
+              <img :src="resolveMediaUrl(imageUrl)" :alt="`旅行动态图片${index + 1}`" @error="handleImageError" />
+              <a-button size="small" class="moments-composer__preview-remove" @click="removeEditImage(index)">
+                移除
+              </a-button>
+            </div>
+          </div>
+          <div class="moments-composer__toolbar">
+            <div class="moments-composer__toolbar-actions">
+              <a-button
+                size="small"
+                :loading="uploadingImages"
+                :disabled="uploadingImages || editPostDraft.imageUrls.length >= 9"
+                @click="openEditImagePicker"
+              >
+                添加图片
+              </a-button>
+              <span class="moments-composer__toolbar-hint">{{ editPostDraft.imageUrls.length }}/9 张</span>
+            </div>
+          </div>
+        </div>
+      </a-modal>
     </div>
   </div>
 </template>
@@ -376,6 +469,7 @@ import { message } from 'ant-design-vue'
 import {
   addCommunityCardComment,
   addCommunityPostComment,
+  deleteCommunityPost,
   getCommunityPostPlan,
   getCommunityFeed,
   getCommunityPosts,
@@ -387,6 +481,7 @@ import {
   toggleCommunityCardFavorite,
   toggleCommunityCardLike,
   toggleCommunityPostLike,
+  updateCommunityPost,
   uploadCommunityImage,
 } from '@/services/api'
 import type { CommunityFeedData, CommunityPost, CommunityTripCard, TravelTrackItem } from '@/types'
@@ -403,6 +498,7 @@ const trackLoading = ref(false)
 const publishingPost = ref(false)
 const uploadingImages = ref(false)
 const showPostComposer = ref(false)
+const editPostModalOpen = ref(false)
 const feed = ref<CommunityFeedData | null>(null)
 const posts = ref<CommunityPost[]>([])
 const focusedPostId = ref('')
@@ -412,8 +508,20 @@ const submittingCommentId = ref('')
 const postCommentDrafts = ref<Record<string, string>>({})
 const submittingPostCommentId = ref('')
 const postReplyTargets = ref<Record<string, { id: string; author_name: string } | null>>({})
+const deletingPostId = ref('')
 const imageInputRef = ref<HTMLInputElement | null>(null)
+const editImageInputRef = ref<HTMLInputElement | null>(null)
 const postDraft = ref({
+  content: '',
+  city: '',
+  tagsText: '',
+  imageUrls: [] as string[],
+  linkedTrackId: undefined as string | undefined,
+  linkedTrackTitle: '',
+})
+const editingPostId = ref('')
+const savingEditedPost = ref(false)
+const editPostDraft = ref({
   content: '',
   city: '',
   tagsText: '',
@@ -740,6 +848,131 @@ const handleLinkedTrackChange = (trackId?: string) => {
   }
 }
 
+const openEditPost = (post: CommunityPost) => {
+  if (!requireLogin()) return
+  if (authState.user?.id !== post.user_id) {
+    message.warning('只能编辑自己发布的旅行动态')
+    return
+  }
+  editingPostId.value = post.id
+  editPostDraft.value = {
+    content: post.content,
+    city: post.city || '',
+    tagsText: post.tags.join(', '),
+    imageUrls: [...post.image_urls],
+    linkedTrackId: post.linked_track_id || undefined,
+    linkedTrackTitle: post.linked_track_title || '',
+  }
+  editPostModalOpen.value = true
+  if (!availableTracks.value.length) {
+    void loadAvailableTracks()
+  }
+}
+
+const closeEditPost = () => {
+  editPostModalOpen.value = false
+  editingPostId.value = ''
+  editPostDraft.value = {
+    content: '',
+    city: '',
+    tagsText: '',
+    imageUrls: [],
+    linkedTrackId: undefined,
+    linkedTrackTitle: '',
+  }
+}
+
+const handleEditLinkedTrackChange = (trackId?: string) => {
+  const track = availableTracks.value.find((item) => item.id === trackId)
+  editPostDraft.value.linkedTrackTitle = track ? `${track.city} ${track.start_date} - ${track.end_date}` : ''
+  if (track && !editPostDraft.value.city.trim()) {
+    editPostDraft.value.city = track.city
+  }
+}
+
+const openEditImagePicker = () => {
+  editImageInputRef.value?.click()
+}
+
+const handleEditImageFiles = async (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const files = Array.from(target.files || [])
+  target.value = ''
+  if (!files.length) return
+
+  const remainingSlots = Math.max(0, 9 - editPostDraft.value.imageUrls.length)
+  if (!remainingSlots) {
+    message.info('最多上传 9 张图片')
+    return
+  }
+
+  const selectedFiles = files.slice(0, remainingSlots)
+  if (files.length > remainingSlots) {
+    message.info(`最多上传 9 张图片，已选择前 ${remainingSlots} 张`)
+  }
+
+  uploadingImages.value = true
+  try {
+    for (const file of selectedFiles) {
+      const response = await uploadCommunityImage(file)
+      if (!response.success || !response.url) {
+        throw new Error(response.message || `${file.name} 上传失败`)
+      }
+      editPostDraft.value.imageUrls.push(response.url)
+    }
+    message.success(`已添加 ${selectedFiles.length} 张图片`)
+  } catch (error: any) {
+    message.error(error.message || '上传图片失败')
+  } finally {
+    uploadingImages.value = false
+  }
+}
+
+const removeEditImage = (index: number) => {
+  editPostDraft.value.imageUrls.splice(index, 1)
+}
+
+const saveEditedPost = async () => {
+  if (!editingPostId.value) return
+  const content = editPostDraft.value.content.trim()
+  if (!content) {
+    message.info('先写一点动态内容')
+    return
+  }
+
+  savingEditedPost.value = true
+  try {
+    const tags = editPostDraft.value.tagsText.split(',').map((item) => item.trim()).filter(Boolean)
+    const response = await updateCommunityPost(editingPostId.value, {
+      content,
+      city: editPostDraft.value.city.trim(),
+      tags,
+      image_urls: editPostDraft.value.imageUrls.map((item) => item.trim()).filter(Boolean),
+      linked_track_id: editPostDraft.value.linkedTrackId || '',
+      linked_track_title: editPostDraft.value.linkedTrackTitle,
+    })
+    if (!response.success || !response.data) {
+      throw new Error(response.message || '编辑动态失败')
+    }
+    const index = posts.value.findIndex((item) => item.id === editingPostId.value)
+    if (index >= 0) {
+      posts.value[index] = {
+        ...posts.value[index],
+        ...response.data,
+        liked_by_me: posts.value[index].liked_by_me,
+        followed_author: posts.value[index].followed_author,
+        recent_comments: posts.value[index].recent_comments,
+      }
+    }
+    closeEditPost()
+    message.success('动态已更新')
+  } catch (error: any) {
+    message.error(error.message || '编辑动态失败')
+  } finally {
+    savingEditedPost.value = false
+  }
+}
+
 const toggleLike = async (card: CommunityTripCard) => {
   if (!requireLogin()) return
   const previous = card.liked_by_me
@@ -859,6 +1092,27 @@ const togglePostLike = async (post: CommunityPost) => {
     post.like_count += response.active && !previous ? 1 : !response.active && previous ? -1 : 0
   } catch (error: any) {
     message.error(error.message || '更新动态喜欢失败')
+  }
+}
+
+const deletePost = async (post: CommunityPost) => {
+  if (!requireLogin()) return
+  if (authState.user?.id !== post.user_id) {
+    message.warning('只能删除自己发布的旅行动态')
+    return
+  }
+  deletingPostId.value = post.id
+  try {
+    const response = await deleteCommunityPost(post.id)
+    if (!response.success) {
+      throw new Error(response.message || '删除动态失败')
+    }
+    posts.value = posts.value.filter((item) => item.id !== post.id)
+    message.success('动态已删除')
+  } catch (error: any) {
+    message.error(error.message || '删除动态失败')
+  } finally {
+    deletingPostId.value = ''
   }
 }
 
@@ -1422,7 +1676,7 @@ onMounted(() => {
 
 .moment-card__head {
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 .moment-card__author {
@@ -1443,6 +1697,37 @@ onMounted(() => {
 
 .moment-card__author-button:hover strong {
   color: var(--brand-primary);
+}
+
+.moment-card__name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.moment-card__head > .moment-card__follow-button {
+  display: none;
+}
+
+.moment-card__follow-button {
+  height: 28px;
+  padding: 0 10px;
+  border: none !important;
+  background: #dbeeff !important;
+  color: #125fa7 !important;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 8px 16px rgba(45, 134, 231, 0.14);
+}
+
+.moment-card__follow-button:hover {
+  background: #c8e5ff !important;
+  color: #0f4f8e !important;
+}
+
+.post-edit-modal {
+  display: grid;
+  gap: 14px;
 }
 
 .moment-card__avatar {
@@ -1493,6 +1778,8 @@ onMounted(() => {
 .moment-card__content {
   color: #2f4156;
   font-size: 17px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .moment-card__plan-link {
@@ -1625,6 +1912,8 @@ onMounted(() => {
   font-size: 15px;
   font-weight: 500;
   padding-left: 44px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .moment-card__comment-time {

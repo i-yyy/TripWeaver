@@ -11,16 +11,6 @@
             </h1>
             <p class="page-subtitle">把想去的城市、想看的风景和想停留的节奏交给我们，系统会替你把旅途慢慢织成一张有画面的路线图</p>
           </div>
-
-          <div class="planner-hero-card" :style="{ backgroundImage: `url(${heroPhoto})` }">
-            <div class="planner-hero-card__overlay"></div>
-            <div class="planner-hero-card__content">
-              <div class="planner-hero-card__layout">
-                <span class="planner-hero-card__eyebrow">旅途小笺</span>
-                <strong>把想遇见的花影、想慢慢逛的街和顺路的小风景记下来，系统会替你排成一段轻盈又好拍的旅程。</strong>
-              </div>
-            </div>
-          </div>
         </div>
 
         <div v-if="loading" class="planner-progress planner-progress--floating">
@@ -40,7 +30,7 @@
               </div>
             </div>
 
-            <div class="planner-core-panel" :style="{ '--planner-core-photo': `url(${corePanelPhoto})` }">
+            <div class="planner-core-panel" :style="{ '--planner-card-photo': `url(${plannerCardPhoto})` }">
               <div class="planner-core-panel__summary">
                 <article class="planner-core-panel__note">
                   <span>主线起笔</span>
@@ -115,7 +105,7 @@
 
             <div
               class="planner-preference-panel"
-              :style="{ '--planner-preference-photo': `url(${preferencePanelPhoto})` }"
+              :style="{ '--planner-card-photo': `url(${plannerCardPhoto})` }"
             >
               <div class="planner-preference-panel__layout">
                 <div class="planner-preference-panel__content">
@@ -225,9 +215,7 @@ import { message } from 'ant-design-vue'
 import type { Dayjs } from 'dayjs'
 
 import { generateTripPlan } from '@/services/api'
-import heroPhoto from '@/assets/season/roses-field.jpg'
-import corePanelPhoto from '@/assets/season/tree-flower.jpg'
-import preferencePanelPhoto from '@/assets/season/garden-night.jpg'
+import plannerCardPhoto from '@/assets/planner-card-bg.png'
 import type { TripFormData } from '@/types'
 import { useAuthState } from '@/utils/auth'
 
@@ -523,8 +511,8 @@ const handleSubmit = async () => {
 
 .planner-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.06fr) minmax(420px, 0.94fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
   align-items: center;
   margin-bottom: 22px;
 }
@@ -657,6 +645,7 @@ const handleSubmit = async () => {
 }
 
 .planner-title {
+  font-family: "Microsoft YaHei", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
   font-size: clamp(34px, 4.2vw, 54px);
   line-height: 1.04;
 }
@@ -668,7 +657,7 @@ const handleSubmit = async () => {
 
 .planner-title__lead {
   margin-right: 0.18em;
-  font-family: "STKaiti", "KaiTi", "Kaiti SC", "FZShuTi", serif;
+  font-family: "Microsoft YaHei", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
   font-weight: 700;
   letter-spacing: 0.02em;
   color: #244a73;
@@ -676,7 +665,7 @@ const handleSubmit = async () => {
 }
 
 .planner-title__focus {
-  font-family: "STKaiti", "KaiTi", "Kaiti SC", "DFKai-SB", serif;
+  font-family: "Microsoft YaHei", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
   font-weight: 700;
   letter-spacing: 0.01em;
 }
@@ -700,8 +689,8 @@ const handleSubmit = async () => {
   padding: 22px;
   border-radius: 24px;
   background:
-    radial-gradient(circle at top right, rgba(150, 203, 244, 0.14), transparent 24%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.70), rgba(243, 248, 255, 0.64));
+    linear-gradient(90deg, rgba(255, 255, 255, 0.66) 0%, rgba(255, 255, 255, 0.54) 52%, rgba(255, 255, 255, 0.22) 100%),
+    var(--planner-card-photo) center center / cover no-repeat;
   border: 1px solid rgba(201, 221, 244, 0.82);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.88),
@@ -727,12 +716,7 @@ const handleSubmit = async () => {
   pointer-events: none;
   overflow: hidden;
   z-index: 1;
-  background-image: var(--planner-preference-photo);
-  background-repeat: no-repeat;
-  background-position: right center;
-  background-size: auto 102%;
-  opacity: 0.82;
-  filter: saturate(0.92) brightness(1.02);
+  background: transparent;
 }
 
 .planner-preference-panel__art::before,
@@ -744,21 +728,15 @@ const handleSubmit = async () => {
 }
 
 .planner-preference-panel__art::before {
-  background-image: var(--planner-preference-photo);
-  background-repeat: no-repeat;
-  background-position: right center;
-  background-size: auto 104%;
-  opacity: 0.42;
-  filter: blur(18px) saturate(0.88) brightness(1.05);
-  transform: scale(1.03);
+  background: rgba(255, 255, 255, 0.08);
+  opacity: 0.36;
+  filter: blur(18px);
 }
 
 .planner-preference-panel__art::after {
   background:
-    linear-gradient(to right, rgba(244, 248, 255, 0.99) 0%, rgba(244, 248, 255, 0.98) 34%, rgba(244, 248, 255, 0.94) 52%, rgba(246, 249, 255, 0.78) 66%, rgba(248, 251, 255, 0.52) 79%, rgba(250, 252, 255, 0.24) 91%, rgba(255, 255, 255, 0.1) 100%),
-    linear-gradient(to top, rgba(242, 247, 255, 0.58) 0%, rgba(247, 250, 255, 0.18) 28%, rgba(255, 255, 255, 0) 54%),
-    radial-gradient(circle at 84% 52%, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 24%, rgba(255, 255, 255, 0) 54%),
-    radial-gradient(circle at 56% 50%, rgba(245, 249, 255, 0.34) 0%, rgba(245, 249, 255, 0.18) 18%, rgba(245, 249, 255, 0.06) 34%, rgba(255, 255, 255, 0) 54%);
+    linear-gradient(to right, rgba(244, 248, 255, 0.78) 0%, rgba(244, 248, 255, 0.58) 46%, rgba(250, 252, 255, 0.18) 100%),
+    linear-gradient(to top, rgba(242, 247, 255, 0.24) 0%, rgba(247, 250, 255, 0.08) 44%, rgba(255, 255, 255, 0) 100%);
 }
 
 .planner-preference-panel__interest {
@@ -800,7 +778,6 @@ const handleSubmit = async () => {
   padding: 18px;
   border-radius: 26px;
   background:
-    radial-gradient(circle at top right, rgba(135, 189, 244, 0.16), transparent 24%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(240, 247, 255, 0.72));
   border: 1px solid rgba(191, 215, 242, 0.82);
   box-shadow:
@@ -813,12 +790,12 @@ const handleSubmit = async () => {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background-image: var(--planner-core-photo);
+  background-image: var(--planner-card-photo);
   background-repeat: no-repeat;
-  background-position: left bottom;
-  background-size: 500px auto;
-  opacity: 0.48;
-  filter: saturate(1) brightness(1) blur(0.1px);
+  background-position: center center;
+  background-size: cover;
+  opacity: 0.84;
+  filter: saturate(1.08) brightness(1.02);
   pointer-events: none;
   z-index: 0;
 }
@@ -829,9 +806,8 @@ const handleSubmit = async () => {
   inset: 0;
   border-radius: inherit;
   background:
-    radial-gradient(circle at left bottom, rgba(255, 255, 255, 0.01) 0%, rgba(255, 255, 255, 0.06) 12%, rgba(255, 255, 255, 0.22) 24%, rgba(255, 255, 255, 0.58) 40%, rgba(255, 255, 255, 0.90) 62%),
-    linear-gradient(to top right, rgba(255, 255, 255, 0.08) 0%, rgba(247, 251, 255, 0.24) 16%, rgba(242, 248, 255, 0.58) 38%, rgba(240, 247, 255, 0.88) 68%, rgba(240, 247, 255, 0.97) 100%),
-    radial-gradient(circle at 20% 86%, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.34) 24%, rgba(255, 255, 255, 0.80) 48%, rgba(255, 255, 255, 0.96) 66%);
+    linear-gradient(90deg, rgba(255, 255, 255, 0.58) 0%, rgba(255, 255, 255, 0.36) 42%, rgba(255, 255, 255, 0.52) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(245, 250, 255, 0.36));
   pointer-events: none;
   z-index: 0;
 }
@@ -879,6 +855,26 @@ const handleSubmit = async () => {
 
 .planner-core-panel__fields {
   padding: 4px 2px 0;
+}
+
+.planner-core-panel__fields :deep(.ant-input),
+.planner-core-panel__fields :deep(.ant-input-number),
+.planner-core-panel__fields :deep(.ant-picker),
+.planner-core-panel__fields :deep(.ant-select-selector) {
+  border: 1px solid rgba(137, 170, 207, 0.72) !important;
+  box-shadow: 0 8px 18px rgba(89, 126, 171, 0.08);
+}
+
+.planner-core-panel__fields :deep(.ant-input:hover),
+.planner-core-panel__fields :deep(.ant-input:focus),
+.planner-core-panel__fields :deep(.ant-input-number:hover),
+.planner-core-panel__fields :deep(.ant-input-number-focused),
+.planner-core-panel__fields :deep(.ant-picker:hover),
+.planner-core-panel__fields :deep(.ant-picker-focused),
+.planner-core-panel__fields :deep(.ant-select-focused .ant-select-selector),
+.planner-core-panel__fields :deep(.ant-select-selector:hover) {
+  border-color: rgba(65, 126, 197, 0.92) !important;
+  box-shadow: 0 0 0 3px rgba(64, 140, 224, 0.12), 0 10px 20px rgba(89, 126, 171, 0.1);
 }
 
 .planner-section-head {

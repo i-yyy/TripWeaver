@@ -1399,6 +1399,7 @@ class AmapService:
             address=address,
             location=location,
             tel=tel_value,
+            photos=cls.extract_photo_urls(item),
         )
 
     @classmethod

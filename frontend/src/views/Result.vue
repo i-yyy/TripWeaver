@@ -141,42 +141,53 @@
                 </div>
               </div>
 
-              <div v-if="day.hotel" class="day-section day-section--full day-section--divider">
+              <div v-if="getDisplayHotel(day)" class="day-section day-section--full day-section--divider">
                 <div class="section-heading compact-heading">
                   <h3>🏨 酒店推荐</h3>
                 </div>
                 <div class="entity-card hotel-compact hotel-compact--panel">
                   <div class="hotel-compact__map">
+                    <img
+                      v-if="getHotelImageUrl(getDisplayHotel(day))"
+                      class="hotel-cover-image"
+                      :src="getHotelImageUrl(getDisplayHotel(day))"
+                      :alt="getDisplayHotel(day)?.name || '酒店照片'"
+                    />
                     <DayRouteMap
+                      v-else-if="buildHotelLocationRoute(day) || getDisplayHotel(day)?.map_image_url"
                       class="hotel-location-map"
                       :route="buildHotelLocationRoute(day)"
                       :loading="false"
                       :error="null"
-                      :fallback-static-map-url="day.hotel.map_image_url || null"
+                      :fallback-static-map-url="getDisplayHotel(day)?.map_image_url || null"
                     />
+                    <div v-else class="hotel-location-empty">
+                      <strong>酒店位置待确认</strong>
+                      <span>已保留住宿推荐，实际经纬度以地图或预订平台为准</span>
+                    </div>
                   </div>
                   <div class="hotel-compact__content">
-                    <strong class="hotel-compact__title">{{ day.hotel.name }}</strong>
+                    <strong class="hotel-compact__title">{{ getDisplayHotel(day)?.name }}</strong>
                     <div class="hotel-meta-grid">
                       <div class="hotel-meta-card hotel-meta-card--wide">
                         <strong>📍 地址</strong>
-                        <span>{{ day.hotel.address || '暂无' }}</span>
+                        <span>{{ getDisplayHotel(day)?.address || '暂无' }}</span>
                       </div>
                       <div class="hotel-meta-card">
                         <strong>🏷️ 类型</strong>
-                        <span>{{ hotelTypeLabel(day.hotel.type) }}</span>
+                        <span>{{ hotelTypeLabel(getDisplayHotel(day)?.type || day.accommodation) }}</span>
                       </div>
                       <div class="hotel-meta-card">
                         <strong>💰 价格区间</strong>
-                        <span>{{ priceRangeLabel(day.hotel.price_range) }}</span>
+                        <span>{{ priceRangeLabel(getDisplayHotel(day)?.price_range, getDisplayHotel(day)?.estimated_cost) }}</span>
                       </div>
                       <div class="hotel-meta-card">
                         <strong>⭐ 参考评分</strong>
-                        <span>{{ day.hotel.rating || '暂无' }}</span>
+                        <span>{{ getDisplayHotel(day)?.rating || '暂无' }}</span>
                       </div>
                       <div class="hotel-meta-card">
                         <strong>💴 参考价格</strong>
-                        <span>{{ currency(day.hotel.estimated_cost) }}/晚</span>
+                        <span>{{ currency(getDisplayHotel(day)?.estimated_cost || 0) }}/晚</span>
                       </div>
                     </div>
                   </div>
@@ -492,6 +503,7 @@ import {
   getCommunityPostPlan,
   getDayRouteDetail,
   getTravelTrackPlan,
+  resolveMediaUrl,
   submitFeedback,
 } from '@/services/api'
 import type {
@@ -505,6 +517,7 @@ import type {
   DayRouteSegment,
   DecisionScoreSnapshot,
   FeedbackPayload,
+  Hotel,
   RecommendationReason,
   TripPlan,
   TripScoreSummary,
@@ -1101,15 +1114,16 @@ const buildLocalRouteMarkers = (day: DayPlan): DayRouteMarker[] =>
     }))
 
 const buildHotelLocationRoute = (day: DayPlan): DayRouteInfo | null => {
-  if (!day.hotel) return null
+  const hotel = getDisplayHotel(day)
+  if (!hotel) return null
   const city = tripPlan.value?.city || ''
-  const location = getSafeRouteLocation(day.hotel.location, city)
+  const location = getSafeRouteLocation(hotel.location, city)
   if (!location) return null
   const marker: DayRouteMarker = {
     label: 'H',
-    title: day.hotel.name || '酒店',
+    title: hotel.name || '酒店',
     kind: 'hotel',
-    address: day.hotel.address || '',
+    address: hotel.address || '',
     location,
     image_url: null,
   }
@@ -1120,7 +1134,7 @@ const buildHotelLocationRoute = (day: DayPlan): DayRouteInfo | null => {
     duration: 0,
     markers: [marker],
     segments: [],
-    fallback_static_map_url: day.hotel.map_image_url || null,
+    fallback_static_map_url: hotel.map_image_url || null,
   }
 }
 
@@ -1567,14 +1581,57 @@ const accommodationLabel = (value?: string) => {
   return mapping[value || ''] || value || '待确认'
 }
 
-const hotelTypeLabel = (value?: string) => {
-  if (!value) return '暂无'
-  return accommodationLabel(value)
+const getDisplayHotel = (day: DayPlan): Hotel | null => {
+  if (day.hotel) return day.hotel
+  const accommodation = String(day.accommodation || '').trim()
+  if (!accommodation) return null
+  const label = accommodationLabel(accommodation)
+  const city = tripPlan.value?.city || '目的地'
+  return {
+    name: label === '待确认' ? `${city}推荐住宿` : label,
+    address: `建议选择${city}核心商圈、地铁站或主要景区之间的住宿区域`,
+    price_range: '',
+    rating: '待查询',
+    distance: '以实际预订平台为准',
+    type: accommodation,
+    estimated_cost: 0,
+    photos: [],
+    image_url: '',
+    map_image_url: '',
+  }
 }
 
-const priceRangeLabel = (value?: string) => {
+const getHotelImageUrl = (hotel?: Hotel | null) => {
+  if (!hotel) return ''
+  const image = hotel.image_url || hotel.photos?.find(Boolean) || ''
+  return image ? resolveMediaUrl(image) : ''
+}
+
+const hotelTypeLabel = (value?: string) => {
   if (!value) return '暂无'
+  const text = String(value)
+  if (text.includes('酒店')) return '酒店'
+  if (text.includes('宾馆')) return '宾馆酒店'
+  if (text.includes('民宿')) return '民宿'
+  if (text.includes('客栈')) return '客栈'
+  if (text.includes('Budget') || text.includes('经济')) return '经济酒店'
+  if (text.includes('Comfort') || text.includes('舒适')) return '舒适酒店'
+  if (text.includes('Luxury') || text.includes('高端') || text.includes('高档')) return '高端酒店'
+  return accommodationLabel(text)
+}
+
+const priceRangeLabel = (value?: string, estimatedCost?: number) => {
+  if (!value) {
+    const cost = Number(estimatedCost || 0)
+    if (cost > 0 && cost <= 350) return '经济'
+    if (cost > 0 && cost <= 800) return '舒适'
+    if (cost > 800) return '高端'
+    return '暂无'
+  }
   return value
+    .replace(/low/gi, '经济')
+    .replace(/medium/gi, '舒适')
+    .replace(/high/gi, '高端')
     .replace(/Budget/gi, '经济')
     .replace(/Comfort/gi, '舒适')
     .replace(/Luxury/gi, '高端')
@@ -2440,6 +2497,38 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
 :deep(.hotel-location-map .day-route-map__placeholder) {
   min-height: 260px;
   border-radius: 16px;
+}
+
+.hotel-cover-image {
+  width: 100%;
+  min-height: 260px;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+.hotel-location-empty {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 24px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #eef5ff 0%, #f8fbff 100%);
+  color: var(--brand-text);
+  text-align: center;
+}
+
+.hotel-location-empty strong {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.hotel-location-empty span {
+  max-width: 280px;
+  color: var(--brand-muted);
+  line-height: 1.7;
 }
 
 .hotel-meta-grid {

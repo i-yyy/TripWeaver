@@ -168,6 +168,10 @@ class Hotel(BaseModel):
     distance: str = ""
     type: str = ""
     estimated_cost: int = 0
+    photos: List[str] = Field(default_factory=list)
+    image_url: Optional[str] = None
+    image_source: Optional[str] = None
+    image_status: Optional[str] = None
     map_image_url: Optional[str] = None
 
 
@@ -276,6 +280,7 @@ class POIInfo(BaseModel):
     address: str
     location: Location
     tel: Optional[str] = None
+    photos: List[str] = Field(default_factory=list)
 
 
 class RouteInfo(BaseModel):
@@ -505,6 +510,15 @@ class CommunityCommentResponse(BaseModel):
 
 
 class CommunityPostCreateRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=600)
+    image_urls: List[str] = Field(default_factory=list, max_length=9)
+    city: str = Field(default="", max_length=50)
+    tags: List[str] = Field(default_factory=list, max_length=8)
+    linked_track_id: str = Field(default="", max_length=80)
+    linked_track_title: str = Field(default="", max_length=120)
+
+
+class CommunityPostUpdateRequest(BaseModel):
     content: str = Field(..., min_length=1, max_length=600)
     image_urls: List[str] = Field(default_factory=list, max_length=9)
     city: str = Field(default="", max_length=50)

@@ -16,6 +16,7 @@
   --brand-radius-xl: 30px;
   --brand-radius-lg: 24px;
   --brand-radius-md: 18px;
+  --brand-title-font: "Microsoft YaHei", "Microsoft YaHei UI", "PingFang SC", "Noto Sans SC", sans-serif;
 }
 
 html,
@@ -54,6 +55,24 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+:where(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  .page-title,
+  .section-heading h2,
+  .section-heading h3,
+  .ant-card-head-title,
+  .ant-modal-title,
+  .ant-drawer-title,
+  .ant-statistic-title
+) {
+  font-family: var(--brand-title-font) !important;
 }
 
 .brand-page {

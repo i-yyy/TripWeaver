@@ -1058,6 +1058,10 @@ class PlanningAgent:
             distance=str(item.get("distance") or ""),
             type=str(item.get("type") or ""),
             estimated_cost=self._to_int(item.get("estimated_cost"), 0),
+            photos=self._normalize_photo_urls(item.get("photos")),
+            image_url=str(item.get("image_url") or "") or None,
+            image_source=str(item.get("image_source") or "") or None,
+            image_status=str(item.get("image_status") or "") or None,
             map_image_url=str(item.get("map_image_url") or "") or None,
         )
 

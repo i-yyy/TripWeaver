@@ -762,6 +762,8 @@ button.profile-stat-tile {
   overflow: hidden;
   color: #2f4156;
   line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;

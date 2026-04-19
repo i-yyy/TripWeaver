@@ -352,6 +352,31 @@ export async function toggleCommunityPostLike(postId: string): Promise<Community
   }
 }
 
+export async function deleteCommunityPost(postId: string): Promise<CommunityPostResponse> {
+  try {
+    const response = await apiClient.delete<CommunityPostResponse>(`/api/community/posts/${postId}`)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '删除动态失败')
+  }
+}
+
+export async function updateCommunityPost(postId: string, payload: {
+  content: string
+  image_urls: string[]
+  city: string
+  tags: string[]
+  linked_track_id?: string
+  linked_track_title?: string
+}): Promise<CommunityPostResponse> {
+  try {
+    const response = await apiClient.patch<CommunityPostResponse>(`/api/community/posts/${postId}`, payload)
+    return response.data
+  } catch (error: any) {
+    throw new Error(error.response?.data?.detail || error.message || '编辑动态失败')
+  }
+}
+
 export async function addCommunityPostComment(postId: string, content: string): Promise<CommunityPostCommentResponse> {
   try {
     const response = await apiClient.post<CommunityPostCommentResponse>(`/api/community/posts/${postId}/comments`, {

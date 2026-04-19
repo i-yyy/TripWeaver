@@ -33,6 +33,7 @@ from ..models.schemas import (
     CommunityPostCommentData,
     CommunityPostCreateRequest,
     CommunityPostData,
+    CommunityPostUpdateRequest,
     CommunityProfileHomeData,
     CommunityTripCard,
     CommunityUserSummary,
@@ -702,6 +703,64 @@ class CommunityService:
             recent_comments=[],
         )
 
+    def update_post(self, user_id: str, post_id: str, payload: CommunityPostUpdateRequest) -> CommunityPostData:
+        content = payload.content.strip()
+        if not content:
+            raise ValueError("Post content cannot be empty")
+
+        image_urls = [url.strip() for url in payload.image_urls if str(url).strip()][:9]
+        tags = [tag.strip() for tag in payload.tags if str(tag).strip()][:8]
+        linked_track_id = payload.linked_track_id.strip()
+        linked_track_title = payload.linked_track_title.strip()
+        if linked_track_id:
+            with session_scope() as session:
+                linked_track = session.exec(
+                    select(TripHistory)
+                    .where(TripHistory.id == linked_track_id)
+                    .where(TripHistory.user_id == user_id)
+                ).first()
+                if linked_track is None:
+                    raise ValueError("Linked trip plan not found")
+                linked_track_title = linked_track_title or f"{linked_track.city} {linked_track.start_date} - {linked_track.end_date}"
+
+        with session_scope() as session:
+            post = session.get(CommunityPost, post_id)
+            if post is None or post.status != "published":
+                raise ValueError("Community post not found")
+            if post.user_id != user_id:
+                raise PermissionError("You can only edit your own post")
+
+            post.content = content
+            post.image_urls = image_urls
+            post.city = payload.city.strip()
+            post.tags = tags
+            post.linked_track_id = linked_track_id
+            post.linked_track_title = linked_track_title
+            session.add(post)
+            session.commit()
+            session.refresh(post)
+
+        self._upsert_post_trip_card(post)
+
+        return CommunityPostData(
+            id=post.id,
+            user_id=post.user_id,
+            author_name=post.author_name,
+            author_avatar_url=self._user_avatar_map([post.user_id]).get(post.user_id, ""),
+            content=post.content,
+            image_urls=list(post.image_urls or []),
+            city=post.city,
+            tags=list(post.tags or []),
+            linked_track_id=post.linked_track_id,
+            linked_track_title=post.linked_track_title,
+            like_count=post.like_count,
+            comment_count=post.comment_count,
+            created_at=post.created_at,
+            liked_by_me=False,
+            followed_author=False,
+            recent_comments=[],
+        )
+
     def toggle_post_like(self, user_id: str, post_id: str) -> bool:
         with session_scope() as session:
             post = session.get(CommunityPost, post_id)
@@ -729,6 +788,22 @@ class CommunityService:
             self._record_post_feedback_signal(user_id, post, "like")
             self._sync_post_trip_card_metrics(post)
         return active
+
+    def delete_post(self, user_id: str, post_id: str) -> None:
+        with session_scope() as session:
+            post = session.get(CommunityPost, post_id)
+            if post is None or post.status != "published":
+                raise ValueError("Community post not found")
+            if post.user_id != user_id:
+                raise PermissionError("You can only delete your own post")
+
+            post.status = "deleted"
+            card_record = session.get(CommunityTripCardRecord, f"post-{post.id}")
+            if card_record is not None:
+                card_record.status = "deleted"
+                session.add(card_record)
+            session.add(post)
+            session.commit()
 
     def add_post_comment(
         self,
