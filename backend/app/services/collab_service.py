@@ -71,10 +71,11 @@ class CollabService:
             session.add(trip)
             session.commit()
             session.refresh(trip)
+            trip_id = trip.id
 
-            member = CollabTripMember(trip_id=trip.id, user_id=user_id, role="owner", status="active")
+            member = CollabTripMember(trip_id=trip_id, user_id=user_id, role="owner", status="active")
             change = CollabTripChange(
-                trip_id=trip.id,
+                trip_id=trip_id,
                 user_id=user_id,
                 change_type="create",
                 summary="创建了协同行程",
@@ -85,7 +86,7 @@ class CollabService:
             session.add(change)
             session.commit()
 
-        detail = self.get_trip_detail(user_id, trip.id)
+        detail = self.get_trip_detail(user_id, trip_id)
         if detail is None:
             raise ValueError("Failed to create collaborative trip")
         return detail
@@ -312,8 +313,7 @@ class CollabService:
             session.commit()
             session.refresh(invite)
             users = session.exec(select(User).where(User.id.in_([user_id, invitee.id]))).all()
-
-        return self._invite_data(invite, user_map={user.id: user for user in users}, trip=trip)
+            return self._invite_data(invite, user_map={user.id: user for user in users}, trip=trip)
 
     def respond_invite(self, user_id: str, invite_id: str, accepted: bool) -> CollabTripInviteData:
         with session_scope() as session:
@@ -348,8 +348,7 @@ class CollabService:
             session.commit()
             session.refresh(invite)
             users = session.exec(select(User).where(User.id.in_([invite.inviter_user_id, user_id]))).all()
-
-        return self._invite_data(invite, user_map={user.id: user for user in users}, trip=trip)
+            return self._invite_data(invite, user_map={user.id: user for user in users}, trip=trip)
 
     def add_comment(self, user_id: str, trip_id: str, payload: CollabTripCommentCreateRequest) -> CollabTripCommentData:
         content = payload.content.strip()
@@ -373,8 +372,7 @@ class CollabService:
             session.commit()
             session.refresh(comment)
             user = session.get(User, user_id)
-
-        return self._comment_data(comment, {user_id: user} if user is not None else {})
+            return self._comment_data(comment, {user_id: user} if user is not None else {})
 
     def toggle_vote(self, user_id: str, trip_id: str, payload: CollabTripVoteRequest) -> Tuple[CollabTripVoteData, bool]:
         with session_scope() as session:

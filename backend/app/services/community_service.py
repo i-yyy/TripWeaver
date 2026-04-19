@@ -762,6 +762,7 @@ class CommunityService:
         )
 
     def toggle_post_like(self, user_id: str, post_id: str) -> bool:
+        post_snapshot: Dict[str, object] = {}
         with session_scope() as session:
             post = session.get(CommunityPost, post_id)
             if post is None or post.status != "published":
@@ -782,11 +783,12 @@ class CommunityService:
                 post.like_count = max(0, post.like_count - 1)
                 active = False
             session.add(post)
+            post_snapshot = self._post_snapshot(post)
             session.commit()
 
+        self._sync_post_trip_card_metrics(post_snapshot)
         if active:
-            self._record_post_feedback_signal(user_id, post, "like")
-            self._sync_post_trip_card_metrics(post)
+            self._record_post_feedback_signal(user_id, post_snapshot, "like")
         return active
 
     def delete_post(self, user_id: str, post_id: str) -> None:
@@ -816,6 +818,7 @@ class CommunityService:
         if not text:
             raise ValueError("Comment content cannot be empty")
 
+        post_snapshot: Dict[str, object] = {}
         with session_scope() as session:
             post = session.get(CommunityPost, post_id)
             if post is None or post.status != "published":
@@ -830,18 +833,25 @@ class CommunityService:
             post.comment_count += 1
             session.add(comment)
             session.add(post)
+            post_snapshot = self._post_snapshot(post)
             session.commit()
             session.refresh(comment)
+            comment_id = comment.id
+            comment_post_id = comment.post_id
+            comment_author_name = comment.author_name
+            comment_user_id = comment.user_id
+            comment_content = comment.content
+            comment_created_at = comment.created_at
 
-        self._record_post_feedback_signal(user_id, post, "comment")
-        self._sync_post_trip_card_metrics(post)
+        self._record_post_feedback_signal(user_id, post_snapshot, "comment")
+        self._sync_post_trip_card_metrics(post_snapshot)
         return CommunityPostCommentData(
-            id=comment.id,
-            post_id=comment.post_id,
-            author_name=comment.author_name,
-            author_avatar_url=self._user_avatar_map([comment.user_id]).get(comment.user_id, ""),
-            content=comment.content,
-            created_at=comment.created_at,
+            id=comment_id,
+            post_id=comment_post_id,
+            author_name=comment_author_name,
+            author_avatar_url=self._user_avatar_map([comment_user_id]).get(comment_user_id, ""),
+            content=comment_content,
+            created_at=comment_created_at,
         )
 
     def toggle_follow(self, follower_user_id: str, followed_user_id: str) -> bool:
@@ -955,14 +965,42 @@ class CommunityService:
             session.commit()
 
     @staticmethod
-    def _sync_post_trip_card_metrics(post: CommunityPost) -> None:
+    def _post_snapshot(post: CommunityPost) -> Dict[str, object]:
+        return {
+            "id": post.id,
+            "user_id": post.user_id,
+            "author_name": post.author_name,
+            "city": post.city,
+            "tags": list(post.tags or []),
+            "like_count": post.like_count,
+            "comment_count": post.comment_count,
+            "created_at": post.created_at,
+        }
+
+    @staticmethod
+    def _sync_post_trip_card_metrics(post: CommunityPost | Dict[str, object]) -> None:
+        if isinstance(post, dict):
+            post_id = str(post.get("id") or "")
+            like_count = int(post.get("like_count") or 0)
+            comment_count = int(post.get("comment_count") or 0)
+            created_at = post.get("created_at")
+        else:
+            post_id = post.id
+            like_count = post.like_count
+            comment_count = post.comment_count
+            created_at = post.created_at
+
+        if not post_id:
+            return
+
         with session_scope() as session:
-            record = session.get(CommunityTripCardRecord, f"post-{post.id}")
+            record = session.get(CommunityTripCardRecord, f"post-{post_id}")
             if record is None:
                 return
-            record.like_count = post.like_count
-            record.comment_count = post.comment_count
-            record.updated_at = post.created_at
+            record.like_count = like_count
+            record.comment_count = comment_count
+            if created_at is not None:
+                record.updated_at = created_at
             session.add(record)
             session.commit()
 
@@ -1284,20 +1322,35 @@ class CommunityService:
             return
 
     @staticmethod
-    def _record_post_feedback_signal(user_id: str, post: CommunityPost, interaction_type: str) -> None:
+    def _record_post_feedback_signal(
+        user_id: str,
+        post: CommunityPost | Dict[str, object],
+        interaction_type: str,
+    ) -> None:
+        if isinstance(post, dict):
+            city = str(post.get("city") or "")
+            author_name = str(post.get("author_name") or "")
+            tags = list(post.get("tags") or [])
+            post_id = str(post.get("id") or "")
+        else:
+            city = post.city
+            author_name = post.author_name
+            tags = list(post.tags or [])
+            post_id = post.id
+
         try:
             get_feedback_service().create_feedback(
                 FeedbackCreateRequest(
                     user_id=user_id,
                     session_id="community_post",
                     target_type="community_post",
-                    target_name=post.city or post.author_name,
+                    target_name=city or author_name,
                     feedback_type="like",
                     reason=f"community_post_{interaction_type}",
                     metadata={
-                        "city": post.city,
-                        "tags": list(post.tags or []),
-                        "post_id": post.id,
+                        "city": city,
+                        "tags": tags,
+                        "post_id": post_id,
                     },
                 )
             )
