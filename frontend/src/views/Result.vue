@@ -146,25 +146,14 @@
                   <h3>🏨 酒店推荐</h3>
                 </div>
                 <div class="entity-card hotel-compact hotel-compact--panel">
-                  <div class="hotel-compact__map">
-                    <img
-                      v-if="getHotelImageUrl(getDisplayHotel(day))"
-                      class="hotel-cover-image"
-                      :src="getHotelImageUrl(getDisplayHotel(day))"
-                      :alt="getDisplayHotel(day)?.name || '酒店照片'"
-                    />
+                  <div v-if="buildHotelLocationRoute(day)" class="hotel-compact__map">
                     <DayRouteMap
-                      v-else-if="buildHotelLocationRoute(day) || getDisplayHotel(day)?.map_image_url"
                       class="hotel-location-map"
                       :route="buildHotelLocationRoute(day)"
                       :loading="false"
                       :error="null"
-                      :fallback-static-map-url="getDisplayHotel(day)?.map_image_url || null"
+                      :fallback-static-map-url="null"
                     />
-                    <div v-else class="hotel-location-empty">
-                      <strong>酒店位置待确认</strong>
-                      <span>已保留住宿推荐，实际经纬度以地图或预订平台为准</span>
-                    </div>
                   </div>
                   <div class="hotel-compact__content">
                     <strong class="hotel-compact__title">{{ getDisplayHotel(day)?.name }}</strong>
@@ -503,7 +492,6 @@ import {
   getCommunityPostPlan,
   getDayRouteDetail,
   getTravelTrackPlan,
-  resolveMediaUrl,
   submitFeedback,
 } from '@/services/api'
 import type {
@@ -1134,7 +1122,7 @@ const buildHotelLocationRoute = (day: DayPlan): DayRouteInfo | null => {
     duration: 0,
     markers: [marker],
     segments: [],
-    fallback_static_map_url: hotel.map_image_url || null,
+    fallback_static_map_url: null,
   }
 }
 
@@ -1599,12 +1587,6 @@ const getDisplayHotel = (day: DayPlan): Hotel | null => {
     image_url: '',
     map_image_url: '',
   }
-}
-
-const getHotelImageUrl = (hotel?: Hotel | null) => {
-  if (!hotel) return ''
-  const image = hotel.image_url || hotel.photos?.find(Boolean) || ''
-  return image ? resolveMediaUrl(image) : ''
 }
 
 const hotelTypeLabel = (value?: string) => {
@@ -2497,38 +2479,6 @@ const weatherIcon = (weather?: string, period: 'day' | 'night' = 'day') => {
 :deep(.hotel-location-map .day-route-map__placeholder) {
   min-height: 260px;
   border-radius: 16px;
-}
-
-.hotel-cover-image {
-  width: 100%;
-  min-height: 260px;
-  height: 100%;
-  display: block;
-  object-fit: cover;
-  border-radius: 16px;
-}
-
-.hotel-location-empty {
-  min-height: 260px;
-  display: grid;
-  place-items: center;
-  gap: 8px;
-  padding: 24px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #eef5ff 0%, #f8fbff 100%);
-  color: var(--brand-text);
-  text-align: center;
-}
-
-.hotel-location-empty strong {
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.hotel-location-empty span {
-  max-width: 280px;
-  color: var(--brand-muted);
-  line-height: 1.7;
 }
 
 .hotel-meta-grid {
