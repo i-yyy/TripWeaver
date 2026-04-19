@@ -21,7 +21,7 @@
         <div class="landing-copy">
           <span class="page-kicker">✨ 灵感一来，立刻出发</span>
           <h1 class="page-title landing-title">
-            <span class="landing-title__cn">云途智织</span>
+            <span class="landing-title__cn">织途</span>
             <span class="landing-title__en">TripWeaver</span>
           </h1>
           <p class="page-subtitle landing-subtitle">
@@ -105,8 +105,12 @@ const goTracks = () => router.push('/tracks')
   background:
     radial-gradient(circle at left top, rgba(255, 255, 255, 0.7), transparent 30%),
     radial-gradient(circle at right 26%, rgba(255, 255, 255, 0.18), transparent 18%),
-    linear-gradient(135deg, #cfe4fb 0%, #7db9f1 46%, #3c97e8 100%);
+    linear-gradient(135deg, #cfe4fb 0%, #7db9f1 46%, #3c97e8 100%) !important;
   overflow: hidden;
+}
+
+.landing-hero::before {
+  display: none !important;
 }
 
 .landing-nav {
