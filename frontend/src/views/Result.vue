@@ -127,9 +127,9 @@
                       <h3>📝 每日行程</h3>
                     </div>
                     <div class="day-summary day-summary--embedded">
-                      <p><strong>📝 当日概览：</strong>{{ day.description }}</p>
+                      <p><strong>📝 当日概览：</strong>{{ normalizePlanText(day.description) }}</p>
                       <p><strong>🚇 交通方式：</strong>{{ transportationLabel(day.transportation) }}</p>
-                      <p><strong>💸 交通费用：</strong>{{ currency(day.transportation_cost) }}</p>
+                      <p><strong>💸 交通费用：</strong>{{ currency(transportationCostValue(day)) }}</p>
                       <p><strong>🛏️ 住宿安排：</strong>{{ accommodationLabel(day.accommodation) }}</p>
                       <p><strong>🗺️ 路线摘要：</strong>{{ getRenderableDayRoute(dayIndex, day)?.summary || day.route_summary || '暂无路线摘要' }}</p>
                       <p v-if="getRenderableDayRoute(dayIndex, day)">
@@ -703,7 +703,7 @@ const buildPlanBudget = (plan: TripPlan): Budget => {
       acc.total_attractions += day.attractions.reduce((sum, item) => sum + Number(item.ticket_price || 0), 0)
       acc.total_hotels += Number(day.hotel?.estimated_cost || 0)
       acc.total_meals += day.meals.reduce((sum, item) => sum + Number(item.estimated_cost || 0), 0)
-      acc.total_transportation += Number(day.transportation_cost || 0)
+      acc.total_transportation += transportationCostValue(day)
       return acc
     },
     {
@@ -1105,7 +1105,9 @@ const buildHotelLocationRoute = (day: DayPlan): DayRouteInfo | null => {
   const hotel = getDisplayHotel(day)
   if (!hotel) return null
   const city = tripPlan.value?.city || ''
-  const location = getSafeRouteLocation(hotel.location, city)
+  const location =
+    getSafeRouteLocation(hotel.location, city) ||
+    day.attractions.map((item) => getSafeRouteLocation(item.location, city)).find(Boolean)
   if (!location) return null
   const marker: DayRouteMarker = {
     label: 'H',
@@ -1117,7 +1119,7 @@ const buildHotelLocationRoute = (day: DayPlan): DayRouteInfo | null => {
   }
   return {
     route_type: 'walking',
-    summary: `酒店位置：${marker.title}`,
+    summary: `住宿区域参考：${marker.title}`,
     distance: 0,
     duration: 0,
     markers: [marker],
@@ -1544,8 +1546,30 @@ const mealLabel = (type: string) => {
   return mapping[type] || type
 }
 
-const transportationLabel = (value?: string) => {
-  const text = String(value || '').toLowerCase()
+const normalizePlanText = (value: unknown): string => {
+  if (value == null) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number') return String(value)
+  if (typeof value === 'object') {
+    const item = value as Record<string, unknown>
+    return String(item.description || item.name || item.title || item.type || '')
+  }
+  return String(value)
+}
+
+const transportationCostValue = (day: DayPlan): number => {
+  const direct = Number(day.transportation_cost || 0)
+  if (direct > 0) return direct
+  const transportation = day.transportation as unknown
+  if (transportation && typeof transportation === 'object') {
+    return Number((transportation as Record<string, unknown>).estimated_cost || 0)
+  }
+  return 0
+}
+
+const transportationLabel = (value?: unknown) => {
+  const normalized = normalizePlanText(value)
+  const text = normalized.toLowerCase()
   if (!text) return '待确认'
   if (text.includes('public transit') || text.includes('transit') || text.includes('bus') || text.includes('subway')) {
     return '公共交通'
@@ -1556,22 +1580,23 @@ const transportationLabel = (value?: string) => {
   if (text.includes('walk') || text.includes('walking')) {
     return '步行'
   }
-  return value || '待确认'
+  return normalized || '待确认'
 }
 
-const accommodationLabel = (value?: string) => {
+const accommodationLabel = (value?: unknown) => {
   const mapping: Record<string, string> = {
     'Budget Hotel': '经济酒店',
     'Comfort Hotel': '舒适酒店',
     'Luxury Hotel': '高端酒店',
     Homestay: '民宿',
   }
-  return mapping[value || ''] || value || '待确认'
+  const normalized = normalizePlanText(value)
+  return mapping[normalized] || normalized || '待确认'
 }
 
 const getDisplayHotel = (day: DayPlan): Hotel | null => {
   if (day.hotel) return day.hotel
-  const accommodation = String(day.accommodation || '').trim()
+  const accommodation = accommodationLabel(day.accommodation).trim()
   if (!accommodation) return null
   const label = accommodationLabel(accommodation)
   const city = tripPlan.value?.city || '目的地'

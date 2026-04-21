@@ -44,19 +44,19 @@ class TracksService:
             if updated:
                 session.commit()
 
-        return [
-            TravelTrackItem(
-                id=item.id,
-                city=item.city,
-                start_date=item.start_date,
-                end_date=item.end_date,
-                searched_at=item.created_at,
-                trip_summary=item.trip_summary,
-                city_longitude=item.city_longitude,
-                city_latitude=item.city_latitude,
-            )
-            for item in items
-        ]
+            return [
+                TravelTrackItem(
+                    id=item.id,
+                    city=item.city,
+                    start_date=item.start_date,
+                    end_date=item.end_date,
+                    searched_at=item.created_at,
+                    trip_summary=item.trip_summary,
+                    city_longitude=item.city_longitude,
+                    city_latitude=item.city_latitude,
+                )
+                for item in items
+            ]
 
     def delete_track(self, user_id: str, track_id: str) -> bool:
         with session_scope() as session:

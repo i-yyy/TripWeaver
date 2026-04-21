@@ -344,15 +344,25 @@ const initMap = async () => {
     version: '2.0',
   })
 
+  const baseLayer = new amapSdk.TileLayer({
+    zIndex: 1,
+  })
+
   mapInstance = new amapSdk.Map(mapContainer.value, {
+    viewMode: '2D',
     zoom: 4.5,
     center: [104.195397, 35.86166],
     mapStyle: AMAP_MAP_STYLE,
+    features: ['bg', 'road', 'building', 'point'],
+    layers: [baseLayer],
     resizeEnable: true,
     scrollWheel: true,
   })
 
   refreshMarkers()
+  window.setTimeout(() => {
+    mapInstance?.resize?.()
+  }, 120)
 }
 
 const focusTrack = (track: TravelTrackItem) => {

@@ -690,8 +690,8 @@ class PlanningAgent:
         meals = self._enrich_meals(meals, request, meal_candidates_by_type)
 
         hotel = self._normalize_hotel(day.get("hotel")) if isinstance(day.get("hotel"), dict) else default_hotel
-        accommodation = str(day.get("accommodation") or (hotel.name if hotel else request.accommodation))
-        transportation = str(day.get("transportation") or request.transportation)
+        accommodation = self._normalize_text_field(day.get("accommodation"), hotel.name if hotel else request.accommodation)
+        transportation = self._normalize_text_field(day.get("transportation"), request.transportation)
         transportation_detail = str(
             day.get("transportation_detail")
             or day.get("transportation_reason")
@@ -699,7 +699,10 @@ class PlanningAgent:
         )
         transportation_cost = self._to_int(
             day.get("transportation_cost"),
-            self._estimate_transportation_cost(transportation, attractions),
+            self._to_int(
+                self._extract_object_number(day.get("transportation"), "estimated_cost"),
+                self._estimate_transportation_cost(transportation, attractions),
+            ),
         )
         route_summary = str(day.get("route_summary") or self._build_route_summary(attractions, transportation))
 
@@ -1540,6 +1543,27 @@ class PlanningAgent:
                     return max(30, int(amount * 60))
                 return max(30, int(amount))
         return 120
+
+    @staticmethod
+    def _normalize_text_field(value: Any, default: str = "") -> str:
+        if value is None:
+            return str(default or "")
+        if isinstance(value, dict):
+            return str(
+                value.get("description")
+                or value.get("name")
+                or value.get("title")
+                or value.get("type")
+                or default
+                or ""
+            )
+        return str(value or default or "")
+
+    @staticmethod
+    def _extract_object_number(value: Any, key: str) -> Any:
+        if isinstance(value, dict):
+            return value.get(key)
+        return None
 
     @staticmethod
     def _to_int(value: Any, default: int) -> int:

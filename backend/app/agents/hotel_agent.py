@@ -181,6 +181,7 @@ class HotelAgent:
     def _build_fallback_hotels(self, payload: HotelAgentInput) -> List[Hotel]:
         request = payload.request
         city = request.city.strip() or "目的地"
+        location = self._fallback_location(city)
         accommodation = request.accommodation.lower()
         if "luxury" in accommodation or request.budget_level == "high":
             label = "高端精选酒店"
@@ -199,7 +200,7 @@ class HotelAgent:
             Hotel(
                 name=f"{city}{label}",
                 address=f"建议选择{city}核心商圈、地铁站或主要景区之间的住宿区域",
-                location=None,
+                location=location,
                 price_range=self._estimate_price_range(request),
                 rating="待查询",
                 distance="以实际预订平台为准",
@@ -207,6 +208,13 @@ class HotelAgent:
                 estimated_cost=self._estimate_cost(request),
             )
         ][: payload.limit]
+
+    def _fallback_location(self, city: str) -> Location | None:
+        try:
+            return self.amap_service.geocode_city_http(city)
+        except Exception as exc:  # pragma: no cover - external dependency
+            logger.debug("Fallback hotel city geocode failed city=%s error=%s", city, exc)
+            return None
 
     def _estimate_cost(self, request) -> int:
         accommodation = request.accommodation.lower()
