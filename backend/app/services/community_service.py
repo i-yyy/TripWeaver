@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import imghdr
 import hashlib
 import math
 from pathlib import Path
@@ -41,6 +40,20 @@ from ..models.schemas import (
 )
 from .feedback_service import get_feedback_service
 from .profile_service import get_profile_service
+
+
+def _detect_image_type(data: bytes) -> Optional[str]:
+    if data.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if data.startswith(b"GIF87a") or data.startswith(b"GIF89a"):
+        return "gif"
+    if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+        return "webp"
+    if data.startswith(b"BM"):
+        return "bmp"
+    return None
 
 
 @dataclass(frozen=True)
@@ -900,7 +913,7 @@ class CommunityService:
         if len(data) > 8 * 1024 * 1024:
             raise ValueError("Image must be smaller than 8MB")
 
-        detected_type = imghdr.what(None, data)
+        detected_type = _detect_image_type(data)
         extension_map = {
             "jpeg": ".jpg",
             "png": ".png",

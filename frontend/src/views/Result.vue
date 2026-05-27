@@ -529,6 +529,7 @@ const activeDayKeys = ref<string[]>([])
 const routeDetails = ref<Record<number, DayRouteInfo>>({})
 const routeLoading = ref<Record<number, boolean>>({})
 const routeErrors = ref<Record<number, string>>({})
+const dayRouteApiCircuitOpenUntil = ref<number>(0)
 const exportingPdf = ref(false)
 const expandedScoreDimensionKeys = ref<string[]>([])
 
@@ -1111,7 +1112,7 @@ const buildHotelLocationRoute = (day: DayPlan): DayRouteInfo | null => {
   if (!location) return null
   const marker: DayRouteMarker = {
     label: 'H',
-    title: hotel.name || '酒店',
+    title: getSafeRouteLocation(hotel.location, city) ? hotel.name || '酒店' : `${hotel.name || '酒店'}（近景点）`,
     kind: 'hotel',
     address: hotel.address || '',
     location,
@@ -1179,6 +1180,18 @@ const ensureDayRoute = async (dayIndex: number, force = false) => {
 
   const day = tripPlan.value.days[dayIndex]
   if (!day) return
+  if (!force && Date.now() < dayRouteApiCircuitOpenUntil.value) {
+    routeDetails.value[dayIndex] = buildFallbackRouteInfo(day) || {
+      route_type: normalizeRouteType(day.transportation),
+      summary: day.route_summary || '',
+      distance: 0,
+      duration: 0,
+      markers: [],
+      segments: [],
+      fallback_static_map_url: day.route_map_url || null,
+    }
+    return
+  }
 
   routeLoading.value[dayIndex] = true
   delete routeErrors.value[dayIndex]
@@ -1188,6 +1201,10 @@ const ensureDayRoute = async (dayIndex: number, force = false) => {
       routeDetails.value[dayIndex] = response.data
     }
   } catch (error: any) {
+    const status = Number(error?.response?.status || 0)
+    if (status === 502 || status === 504) {
+      dayRouteApiCircuitOpenUntil.value = Date.now() + 5 * 60 * 1000
+    }
     routeErrors.value[dayIndex] = error.message || '加载每日路线失败，已回退到静态地图'
   } finally {
     routeLoading.value[dayIndex] = false

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-import imghdr
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
@@ -39,6 +38,20 @@ class AuthService:
     @staticmethod
     def _utcnow() -> datetime:
         return datetime.now(timezone.utc)
+
+    @staticmethod
+    def _detect_image_type(data: bytes) -> Optional[str]:
+        if data.startswith(b"\xff\xd8\xff"):
+            return "jpeg"
+        if data.startswith(b"\x89PNG\r\n\x1a\n"):
+            return "png"
+        if data.startswith(b"GIF87a") or data.startswith(b"GIF89a"):
+            return "gif"
+        if data.startswith(b"RIFF") and data[8:12] == b"WEBP":
+            return "webp"
+        if data.startswith(b"BM"):
+            return "bmp"
+        return None
 
     def is_developer_email(self, email: str | None) -> bool:
         normalized_email = (email or "").strip().lower()
@@ -119,7 +132,7 @@ class AuthService:
         if len(data) > 5 * 1024 * 1024:
             raise ValueError("Avatar file is too large")
 
-        detected_type = imghdr.what(None, data)
+        detected_type = self._detect_image_type(data)
         extension_map = {
             "jpeg": ".jpg",
             "png": ".png",

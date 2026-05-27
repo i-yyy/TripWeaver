@@ -1526,11 +1526,39 @@ class PlanningAgent:
             latitude = raw_location.get("latitude", raw_location.get("lat"))
             if longitude is None or latitude is None:
                 return None
-            return Location(longitude=self._to_float(longitude, 0.0), latitude=self._to_float(latitude, 0.0))
+            longitude = self._parse_coordinate(longitude)
+            latitude = self._parse_coordinate(latitude)
+            if longitude is None or latitude is None:
+                return None
+            return Location(longitude=longitude, latitude=latitude)
         if isinstance(raw_location, str) and "," in raw_location:
             longitude, latitude = [item.strip() for item in raw_location.split(",", 1)]
-            return Location(longitude=self._to_float(longitude, 0.0), latitude=self._to_float(latitude, 0.0))
+            longitude = self._parse_coordinate(longitude)
+            latitude = self._parse_coordinate(latitude)
+            if longitude is None or latitude is None:
+                return None
+            return Location(longitude=longitude, latitude=latitude)
         return None
+
+    def _parse_coordinate(self, value: Any) -> Optional[float]:
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            numbers = re.findall(r"-?\d+(?:\.\d+)?", value)
+            if numbers:
+                return float(numbers[0])
+        return None
+
+    def _parse_visit_duration(self, value: Any) -> int:
+        if value is None:
+            return 0
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            numbers = re.findall(r"\d+", value)
+            if numbers:
+                return int(numbers[0])
+        return 0
 
     def _parse_visit_duration(self, value: Any) -> int:
         if isinstance(value, (int, float)):

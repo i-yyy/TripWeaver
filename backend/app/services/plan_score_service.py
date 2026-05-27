@@ -489,6 +489,17 @@ class PlanScoreService:
         stops = [
             item for item in (self._get_safe_route_location(attraction.location, city) for attraction in day.attractions) if item
         ]
+        if day.hotel:
+            hotel_location = self._get_safe_route_location(day.hotel.location, city)
+            if hotel_location:
+                stops.append(hotel_location)
+        for meal in day.meals or []:
+            if len(stops) >= 2:
+                break
+            meal_location = self._get_safe_route_location(meal.location, city)
+            if meal_location:
+                stops.append(meal_location)
+        stops = self._dedupe_locations(stops)
         if len(stops) < 2:
             return 0.0
         total = 0.0
@@ -522,6 +533,18 @@ class PlanScoreService:
 
     def _has_valid_location(self, location: Optional[Location]) -> bool:
         return bool(location and isinstance(location.longitude, (int, float)) and isinstance(location.latitude, (int, float)))
+
+    def _dedupe_locations(self, locations: Sequence[Location]) -> list[Location]:
+        seen: set[tuple[float, float]] = set()
+        result: list[Location] = []
+        for location in locations:
+            if not self._has_valid_location(location):
+                continue
+            key = (round(location.longitude, 6), round(location.latitude, 6))
+            if key not in seen:
+                seen.add(key)
+                result.append(location)
+        return result
 
     def _normalize_route_type(self, transportation: str) -> str:
         text = str(transportation or "").lower()

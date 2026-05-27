@@ -123,3 +123,18 @@ def test_plan_score_factor_impacts_include_positive_and_neutral_entries():
 
     assert any(impact > 0 for impact in all_impacts)
     assert any(impact == 0 for impact in all_impacts)
+
+
+def test_plan_score_estimates_nonzero_route_distance_for_valid_locations():
+    service = get_plan_score_service()
+    plan = build_sample_plan()
+    result = service.evaluate_trip_plan(plan, TripScoreSummary(transportation="public transit"))
+
+    estimated_distance_factor = next(
+        (factor for dimension in result.dimensions for factor in dimension.factors if "里程" in factor.label or "距离" in factor.label),
+        None,
+    )
+
+    assert estimated_distance_factor is not None, "Expected a distance factor in the scoring result"
+    assert result.estimated_distance_km > 0, f"Expected nonzero estimated distance, got {result.estimated_distance_km}"
+    assert float(result.estimated_distance_text.replace(" km", "")) > 0
