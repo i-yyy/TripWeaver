@@ -1,3 +1,0 @@
-{"ts": "2026-03-26T22:42:22.060842", "session_id": "s-20260326-224222-a392", "step": null, "event": "session_start", "payload": {"agent_name": "酒店推荐智能体", "agent_type": "SimpleAgent"}}
-{"ts": "2026-03-26T22:42:22.060842", "session_id": "s-20260326-224222-a392", "step": null, "event": "message_written", "payload": {"role": "user", "content": "[TOOL_CALL:amap_maps_text_search:keywords=hotel,city=beijing]"}}
-{"ts": "2026-03-26T22:42:23.942219", "session_id": "s-20260326-224222-a392", "step": null, "event": "session_end", "payload": {"duration": 1.882379, "final_answer": "[TOOL_CALL:amap_maps_text_search:keywords=酒店,city=北京]", "status": "success", "usage": {"prompt_tokens": 74, "completion_tokens": 21, "total_tokens": 95}, "latency_ms": 1879}}
